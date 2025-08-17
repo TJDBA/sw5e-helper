@@ -1,6 +1,6 @@
 {
   "id": "sw5e-helper",
-  "title": "SW5E Helper: Attack UI",
+  "title": "SW5E Helper Macros",
   "description": "Lightweight attack interface for the SW5E system. Players get a compact dialog and hotbar macros; GMs enable once.",
   "version": "0.1.0",
   "compatibility": { "minimum": "11", "verified": "12" },
