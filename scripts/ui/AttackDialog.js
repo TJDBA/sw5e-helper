@@ -1,3 +1,4 @@
+// scripts/ui/AttackDialog.js
 import { getPresets, savePreset, deletePreset } from "../utils/presets.js";
 import { executeAttack } from "../roll/attack.js";
 
@@ -7,74 +8,138 @@ export class AttackDialog extends Application {
       id: "sw5e-helper-attack",
       title: game.i18n.localize("SW5EHELPER.DialogTitle"),
       template: "modules/sw5e-helper/templates/attack-dialog.hbs",
-      width: 380, height: "auto", classes: ["sw5e-helper"]
+      width: 420, height: "auto", classes: ["sw5e-helper"]
     });
   }
 
-  constructor(actor) {
-    super();
+  constructor(actor, opts = {}) {
+    super(opts);
     this.actor = actor;
-    this.state = { itemId: null, adv: "normal", abilityOverride: "", offHand: false, miscMod: 0 };
+    this.state = {
+      itemId: null,
+      abilityOverride: "",
+      offHand: false,
+      extraMods: "",
+      adv: "normal"
+    };
+    this._lastUsed = null; // in-memory, per-open
   }
 
   async getData() {
-    const weapons = this.actor.items.filter(i => i.type === "weapon" && i.system?.equipped);
-    const presets = await getPresets(this.actor);
-    const abilities = {
-      str: "STR", dex: "DEX", con: "CON", int: "INT", wis: "WIS", cha: "CHA"
-    };
+    const items = this.actor.items.filter(i => i.type === "weapon" && i.system?.equipped);
+    const weapons = items.map(i => ({
+      id: i.id,
+      name: i.name,
+      displayParts: i.system?.damage?.parts?.map(p => p[0]).join(" + "),
+      selected: this.state.itemId ? this.state.itemId === i.id : false
+    }));
     if (!this.state.itemId && weapons[0]) this.state.itemId = weapons[0].id;
-    return { weapons, presets, abilities, ...this.state };
+
+    const abilities = ["str","dex","con","int","wis","cha"].map(k => ({
+      key: k, label: k.toUpperCase(), selected: this.state.abilityOverride === k
+    }));
+
+    const presets = (await getPresets(this.actor)).map(p => ({
+      name: p.name, selected: false
+    }));
+
+    return {
+      presets,
+      weapons,
+      abilities,
+      offHand: this.state.offHand,
+      extraMods: this.state.extraMods,
+      adv: this.state.adv
+    };
   }
 
   activateListeners(html) {
     super.activateListeners(html);
-    const $ = (sel)=>html.find(sel);
 
-    html.on("change", "select[name=itemId], select[name=abilityOverride], input[name=offHand], input[name=miscMod], input[name=adv]", ev => {
+    const readForm = () => {
       const form = html[0].querySelector("form");
       const fd = new FormData(form);
-      this.state = {
-        itemId: fd.get("itemId"),
-        adv: fd.get("adv") ?? "normal",
-        abilityOverride: fd.get("abilityOverride") || "",
-        offHand: form.offHand.checked,
-        miscMod: Number(fd.get("miscMod") || 0)
-      };
+      this.state.itemId = fd.get("itemId") || this.state.itemId;
+      this.state.abilityOverride = fd.get("abilityOverride") || "";
+      this.state.offHand = form.offHand?.checked || false;
+      this.state.extraMods = (fd.get("extraMods") || "").trim();
+    };
+
+    // Field changes
+    html.on("change", "select, input", () => readForm());
+
+    // Roll-mode segmented buttons
+    html.find(".row.rollmode .seg-btn").on("click", ev => {
+      const mode = ev.currentTarget.dataset.adv;
+      if (mode) this.state.adv = mode;
+      this.render(); // re-render to flip "active" class in template (even without CSS)
     });
 
-    $("button[data-action=load]").on("click", () => {
-      const name = html.find("select[name=presetName]").val();
-      const p = this.actor.getFlag("sw5e-helper", "presets")?.find(x => x.name === name);
-      if (!p) return;
-      this.state = { itemId: p.itemId, adv: p.advState, abilityOverride: p.abilityOverride || "", offHand: !!p.offHand, miscMod: Number(p.miscMod||0) };
-      this.render();
-    });
-
-    $("button[data-action=save]").on("click", async () => {
-      const name = html.find("input[name=saveName]").val()?.trim();
-      if (!name) return ui.notifications.warn(game.i18n.localize("SW5EHELPER.NameReq"));
-      await savePreset(this.actor, {
-        name, itemId: this.state.itemId, advState: this.state.adv,
-        abilityOverride: this.state.abilityOverride || null,
-        offHand: !!this.state.offHand, miscMod: Number(this.state.miscMod||0)
+    // Favorites
+    html.find("[data-action=save]").on("click", async () => {
+      const name = await Dialog.prompt({
+        title: game.i18n.localize("SW5EHELPER.Save"),
+        content: `<p>${game.i18n.localize("SW5EHELPER.Favorites")} — ${game.i18n.localize("SW5EHELPER.Save")}</p>
+                  <input type="text" style="width:100%" placeholder="Preset name">`,
+        callback: (html) => html.querySelector("input")?.value?.trim()
       });
-      ui.notifications.info(game.i18n.localize("SW5EHELPER.PresetSaved"));
+      if (!name) return;
+      await savePreset(this.actor, {
+        name,
+        itemId: this.state.itemId,
+        advState: this.state.adv,
+        abilityOverride: this.state.abilityOverride || null,
+        offHand: !!this.state.offHand,
+        miscMod: 0,                 // legacy numeric, kept for compatibility
+        extraMods: this.state.extraMods || "" // new free-form string
+      });
+      ui.notifications.info("Preset saved.");
       this.render();
     });
 
-    $("button[data-action=delete]").on("click", async () => {
+    html.find("[data-action=delete]").on("click", async () => {
       const name = html.find("select[name=presetName]").val();
       if (!name) return;
       await deletePreset(this.actor, name);
-      ui.notifications.info(game.i18n.localize("SW5EHELPER.PresetDeleted"));
+      ui.notifications.info("Preset deleted.");
       this.render();
     });
 
-    html.on("submit", async (ev) => {
-      ev.preventDefault();
-      await executeAttack(this.actor, this.state);
-      this.close();
+    // Quick presets
+    html.find("[data-action=load-last]").on("click", () => {
+      if (!this._lastUsed) return ui.notifications.warn("No last used settings yet.");
+      this.state = { ...this.state, ...this._lastUsed };
+      this.render();
     });
+
+    html.find("[data-action=clear]").on("click", () => {
+      this.state.abilityOverride = "";
+      this.state.offHand = false;
+      this.state.extraMods = "";
+      this.state.adv = "normal";
+      this.render();
+    });
+
+    // Cancel
+    html.find("[data-action=cancel]").on("click", () => this.close());
+
+    // Double-click roll-mode for quick roll (optional)
+    html.find(".row.rollmode .seg-btn").on("dblclick", async () => {
+      readForm();
+      await this._execute();
+    });
+
+    // Enter = roll (if focused in inputs), Esc = cancel
+    html.on("keydown", (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); this.close(); }
+      if (ev.key === "Enter")  { ev.preventDefault(); readForm(); this._execute(); }
+    });
+  }
+
+  async _execute() {
+    // Remember "last used" for Quick Presets
+    this._lastUsed = { ...this.state };
+    await executeAttack(this.actor, this.state);
+    this.close();
   }
 }

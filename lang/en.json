@@ -1,21 +1,27 @@
 {
-  "SW5EHELPER.DialogTitle": "Attack",
+  "SW5EHELPER.DialogTitle": "Attack Roll",
+
+  "SW5EHELPER.Favorites": "Favorites",
+  "SW5EHELPER.None": "— None —",
+  "SW5EHELPER.Save": "Save",
+  "SW5EHELPER.Delete": "Delete",
+
+  "SW5EHELPER.LoadLastUsed": "Load Last Used",
+  "SW5EHELPER.Clear": "Clear",
+
   "SW5EHELPER.Weapon": "Weapon",
-  "SW5EHELPER.RollMode": "Roll Mode",
+
+  "SW5EHELPER.Ability": "Ability",
+  "SW5EHELPER.Default": "Default",
+  "SW5EHELPER.OffHand": "Offhand",
+
+  "SW5EHELPER.ExtraMods": "Additional Modifiers",
+  "SW5EHELPER.ExtraModsPH": "e.g. +2 or 1d4-1",
+
+  "SW5EHELPER.RollType": "Roll Type",
   "SW5EHELPER.Adv": "Advantage",
   "SW5EHELPER.Normal": "Normal",
   "SW5EHELPER.Disadv": "Disadvantage",
-  "SW5EHELPER.AbilityOverride": "Ability Override",
-  "SW5EHELPER.Default": "Default",
-  "SW5EHELPER.OffHand": "Off-hand",
-  "SW5EHELPER.MiscMod": "Ad-hoc Modifier",
-  "SW5EHELPER.PresetSelect": "Presets",
-  "SW5EHELPER.Load": "Load",
-  "SW5EHELPER.Save": "Save",
-  "SW5EHELPER.Delete": "Delete",
-  "SW5EHELPER.PresetNamePH": "Save as…",
-  "SW5EHELPER.RollAttack": "Roll Attack",
-  "SW5EHELPER.PresetSaved": "Preset saved.",
-  "SW5EHELPER.PresetDeleted": "Preset deleted.",
-  "SW5EHELPER.NoActor": "Select a token or open a character sheet."
+
+  "SW5EHELPER.Cancel": "Cancel"
 }

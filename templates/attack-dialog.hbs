@@ -1,57 +1,98 @@
 <form class="sw5e-helper-attack">
-  <div class="row">
-    <label>{{localize "SW5EHELPER.Weapon"}}</label>
-    <select name="itemId">
-      {{#each weapons}}
-        <option value="{{this.id}}">{{this.name}}</option>
+
+  {{!-- ================= Header ================= --}}
+  <header class="hdr">
+    <h2>{{localize "SW5EHELPER.DialogTitle"}}</h2>
+  </header>
+
+  {{!-- ============== Favorites Row ============== --}}
+  <section class="row favorites">
+    <label for="presetName">{{localize "SW5EHELPER.Favorites"}}</label>
+    <select name="presetName" id="presetName">
+      <option value="">{{localize "SW5EHELPER.None"}}</option>
+      {{#each presets}}
+        <option value="{{this.name}}" {{#if this.selected}}selected{{/if}}>
+          {{this.name}}
+        </option>
       {{/each}}
     </select>
-  </div>
 
-  <div class="row">
-    <label>{{localize "SW5EHELPER.RollMode"}}</label>
-    <div class="seg">
-      <label><input type="radio" name="adv" value="dis"> {{localize "SW5EHELPER.Disadv"}}</label>
-      <label><input type="radio" name="adv" value="normal" checked> {{localize "SW5EHELPER.Normal"}}</label>
-      <label><input type="radio" name="adv" value="adv"> {{localize "SW5EHELPER.Adv"}}</label>
-    </div>
-  </div>
+    <button type="button" class="btn" data-action="save">
+      {{localize "SW5EHELPER.Save"}}
+    </button>
 
-  <div class="row">
-    <label>{{localize "SW5EHELPER.AbilityOverride"}}</label>
-    <select name="abilityOverride">
+    <button type="button" class="btn warn" data-action="delete">
+      {{localize "SW5EHELPER.Delete"}}
+    </button>
+  </section>
+
+  {{!-- ============ Quick Presets Row ============ --}}
+  <section class="row quick">
+    <button type="button" class="btn" data-action="load-last">
+      {{localize "SW5EHELPER.LoadLastUsed"}}
+    </button>
+
+    <button type="button" class="btn ghost" data-action="clear">
+      {{localize "SW5EHELPER.Clear"}}
+    </button>
+  </section>
+
+  {{!-- =========== Weapon Selection Row ========== --}}
+  <section class="row weapon">
+    <label for="itemId">{{localize "SW5EHELPER.Weapon"}}</label>
+    <select name="itemId" id="itemId">
+      {{#each weapons}}
+        <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>
+          {{this.name}}{{#if this.displayParts}} ({{this.displayParts}}){{/if}}
+        </option>
+      {{/each}}
+    </select>
+  </section>
+
+  {{!-- ======== Universal Options Row 1 ========= --}}
+  <section class="row uni1">
+    <label for="abilityOverride">{{localize "SW5EHELPER.Ability"}}</label>
+    <select name="abilityOverride" id="abilityOverride">
       <option value="">{{localize "SW5EHELPER.Default"}}</option>
       {{#each abilities}}
-        <option value="{{@key}}">{{this}}</option>
+        <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>
+          {{this.label}}
+        </option>
       {{/each}}
     </select>
-  </div>
 
-  <div class="row">
-    <label><input type="checkbox" name="offHand"> {{localize "SW5EHELPER.OffHand"}}</label>
-  </div>
+    <label class="chk offhand">
+      <input type="checkbox" name="offHand" {{#if offHand}}checked{{/if}}>
+      {{localize "SW5EHELPER.OffHand"}}
+    </label>
+  </section>
 
-  <div class="row">
-    <label>{{localize "SW5EHELPER.MiscMod"}}</label>
-    <input type="number" name="miscMod" value="0" step="1">
-  </div>
+  {{!-- ======== Universal Options Row 2 ========= --}}
+  <section class="row uni2">
+    <label for="extraMods">{{localize "SW5EHELPER.ExtraMods"}}</label>
+    <input type="text" id="extraMods" name="extraMods"
+           placeholder="{{localize 'SW5EHELPER.ExtraModsPH'}}"
+           value="{{extraMods}}">
+  </section>
 
-  <hr/>
+  {{!-- ============ Roll Buttons Row ============ --}}
+  <section class="row rollmode">
+    <button type="button" class="seg-btn {{#if (eq adv 'adv')}}active{{/if}}" data-adv="adv">
+      {{localize "SW5EHELPER.Adv"}}
+    </button>
+    <button type="button" class="seg-btn {{#if (eq adv 'normal')}}active{{/if}}" data-adv="normal">
+      {{localize "SW5EHELPER.Normal"}}
+    </button>
+    <button type="button" class="seg-btn {{#if (eq adv 'dis')}}active{{/if}}" data-adv="dis">
+      {{localize "SW5EHELPER.Disadv"}}
+    </button>
+  </section>
 
-  <div class="row presets">
-    <select name="presetName">
-      <option value="">{{localize "SW5EHELPER.PresetSelect"}}</option>
-      {{#each presets}}
-        <option value="{{this.name}}">{{this.name}}</option>
-      {{/each}}
-    </select>
-    <button type="button" data-action="load">{{localize "SW5EHELPER.Load"}}</button>
-    <input type="text" name="saveName" placeholder="{{localize 'SW5EHELPER.PresetNamePH'}}">
-    <button type="button" data-action="save">{{localize "SW5EHELPER.Save"}}</button>
-    <button type="button" data-action="delete">{{localize "SW5EHELPER.Delete"}}</button>
-  </div>
-
-  <footer class="footer">
-    <button type="submit" class="roll">{{localize "SW5EHELPER.RollAttack"}}</button>
+  {{!-- ============ Cancel Button Row =========== --}}
+  <footer class="row footer">
+    <button type="button" class="btn cancel" data-action="cancel">
+      {{localize "SW5EHELPER.Cancel"}}
+    </button>
   </footer>
+
 </form>
