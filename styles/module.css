@@ -1,0 +1,5 @@
+.sw5e-helper .row { display:flex; align-items:center; gap:.5rem; margin:.4rem 0; }
+.sw5e-helper label { min-width: 120px; }
+.sw5e-helper .seg label { margin-right: .5rem; }
+.sw5e-helper .footer { display:flex; justify-content:flex-end; margin-top:.6rem; }
+.sw5e-helper-chat .formula { margin-top:.25rem; opacity:.8; }

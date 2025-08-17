@@ -1,0 +1,57 @@
+<form class="sw5e-helper-attack">
+  <div class="row">
+    <label>{{localize "SW5EHELPER.Weapon"}}</label>
+    <select name="itemId">
+      {{#each weapons}}
+        <option value="{{this.id}}">{{this.name}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="row">
+    <label>{{localize "SW5EHELPER.RollMode"}}</label>
+    <div class="seg">
+      <label><input type="radio" name="adv" value="dis"> {{localize "SW5EHELPER.Disadv"}}</label>
+      <label><input type="radio" name="adv" value="normal" checked> {{localize "SW5EHELPER.Normal"}}</label>
+      <label><input type="radio" name="adv" value="adv"> {{localize "SW5EHELPER.Adv"}}</label>
+    </div>
+  </div>
+
+  <div class="row">
+    <label>{{localize "SW5EHELPER.AbilityOverride"}}</label>
+    <select name="abilityOverride">
+      <option value="">{{localize "SW5EHELPER.Default"}}</option>
+      {{#each abilities}}
+        <option value="{{@key}}">{{this}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="row">
+    <label><input type="checkbox" name="offHand"> {{localize "SW5EHELPER.OffHand"}}</label>
+  </div>
+
+  <div class="row">
+    <label>{{localize "SW5EHELPER.MiscMod"}}</label>
+    <input type="number" name="miscMod" value="0" step="1">
+  </div>
+
+  <hr/>
+
+  <div class="row presets">
+    <select name="presetName">
+      <option value="">{{localize "SW5EHELPER.PresetSelect"}}</option>
+      {{#each presets}}
+        <option value="{{this.name}}">{{this.name}}</option>
+      {{/each}}
+    </select>
+    <button type="button" data-action="load">{{localize "SW5EHELPER.Load"}}</button>
+    <input type="text" name="saveName" placeholder="{{localize 'SW5EHELPER.PresetNamePH'}}">
+    <button type="button" data-action="save">{{localize "SW5EHELPER.Save"}}</button>
+    <button type="button" data-action="delete">{{localize "SW5EHELPER.Delete"}}</button>
+  </div>
+
+  <footer class="footer">
+    <button type="submit" class="roll">{{localize "SW5EHELPER.RollAttack"}}</button>
+  </footer>
+</form>
