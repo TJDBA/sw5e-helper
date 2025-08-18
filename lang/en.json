@@ -1,27 +1,32 @@
 {
-  "SW5EHELPER.DialogTitle": "Attack Roll",
-
+  "SW5EHELPER.AttackTitle": "Attack Roll",
+  "SW5EHELPER.DamageTitle": "Damage Roll",
   "SW5EHELPER.Favorites": "Favorites",
-  "SW5EHELPER.None": "— None —",
+  "SW5EHELPER.None": "\u2014 None \u2014",
   "SW5EHELPER.Save": "Save",
   "SW5EHELPER.Delete": "Delete",
-
   "SW5EHELPER.LoadLastUsed": "Load Last Used",
   "SW5EHELPER.Clear": "Clear",
-
   "SW5EHELPER.Weapon": "Weapon",
-
   "SW5EHELPER.Ability": "Ability",
   "SW5EHELPER.Default": "Default",
   "SW5EHELPER.OffHand": "Offhand",
-
-  "SW5EHELPER.ExtraMods": "Additional Modifiers",
-  "SW5EHELPER.ExtraModsPH": "e.g. +2 or 1d4-1",
-
-  "SW5EHELPER.RollType": "Roll Type",
+  "SW5EHELPER.ExtraModsAtk": "Attack Mods",
+  "SW5EHELPER.ExtraModsAtkPH": "e.g. +2 or 1d4-1",
+  "SW5EHELPER.ExtraModsDmg": "Additional Damage Modifiers",
   "SW5EHELPER.Adv": "Advantage",
   "SW5EHELPER.Normal": "Normal",
   "SW5EHELPER.Disadv": "Disadvantage",
-
-  "SW5EHELPER.Cancel": "Cancel"
+  "SW5EHELPER.SeparatePerTargetAtk": "Separate roll per target",
+  "SW5EHELPER.SeparatePerTargetDmg": "Separate damage per target",
+  "SW5EHELPER.SuperiorityDie": "Add Superiority Die (shared roll only)",
+  "SW5EHELPER.SmartWeapon": "Smart Weapon",
+  "SW5EHELPER.SmartAbility": "Ability Mod",
+  "SW5EHELPER.SmartProf": "Proficiency Bonus",
+  "SW5EHELPER.Crit": "Critical Hit",
+  "SW5EHELPER.Roll": "Roll",
+  "SW5EHELPER.Cancel": "Cancel",
+  "SW5EHELPER.PresetSaved": "Preset saved.",
+  "SW5EHELPER.PresetDeleted": "Preset deleted.",
+  "SW5EHELPER.NoActor": "Select a token or open a character."
 }

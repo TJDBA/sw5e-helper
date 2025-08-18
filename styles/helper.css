@@ -1,0 +1,59 @@
+/* --- tighten rows & kill 100%-width defaults --- */
+.sw5e-helper-attack .row,
+.sw5e-helper-damage .row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.4rem;          /* slightly tighter than before */
+  flex-wrap: wrap;
+  margin: 0.25rem 0;
+}
+
+.sw5e-helper-attack .row select,
+.sw5e-helper-attack .row input,
+.sw5e-helper-attack .row button,
+.sw5e-helper-damage .row select,
+.sw5e-helper-damage .row input,
+.sw5e-helper-damage .row button {
+  width: auto !important;      /* override Foundry’s 100% width */
+  max-width: 100%;
+  flex: 0 0 auto;
+  height: 26px;                /* consistent control height */
+  line-height: 24px;
+  padding: 2px 6px;
+}
+
+/* labels shouldn’t wrap */
+.sw5e-helper-attack .row > label,
+.sw5e-helper-damage .row > label,
+.sw5e-helper-attack .row span,
+.sw5e-helper-damage .row span {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* long text inputs: only where we want them to stretch */
+.sw5e-helper-attack .uni2 input[type="text"],
+.sw5e-helper-damage .extra-item input[type="text"] {
+  flex: 1 1 260px;             /* grow nicely across the row */
+  min-width: 200px;
+}
+
+/* Smart Weapon row: keep number inputs on the same line, fixed width */
+.sw5e-helper-attack .row.smart input[type="number"] {
+  width: 4.2rem !important;
+  min-width: 4.2rem !important;
+  flex: 0 0 auto;
+}
+
+/* Favorites & Weapon selects get a little breathing room so they don’t force wraps */
+.sw5e-helper-attack .row.favorites select,
+.sw5e-helper-damage .row.favorites select { min-width: 180px; }
+.sw5e-helper-attack .row.weapon select,
+.sw5e-helper-damage .row.weapon select { min-width: 260px; }
+
+/* Roll buttons look like one group but stay inline */
+.sw5e-helper-attack .row.rollmode .seg-btn,
+.sw5e-helper-damage .row.rollmode .seg-btn {
+  flex: 0 0 auto;
+  min-width: 110px;
+}
