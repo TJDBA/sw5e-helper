@@ -83,3 +83,19 @@ export function sanitizeAttackState(state) {
   };
 }
 
+export function sanitizeDamageState(state) {
+  return {
+    weaponId: state.weaponId || "",
+    ability: state.ability || "",
+    offhand: !!state.offhand,
+    dmgMods: state.dmgMods || "",
+    separate: !!state.separate,
+    adv: state.adv || "normal",
+    crit: !!state.crit,
+    // Smart Weapon (persist for damage too)
+    smart: !!state.smart,
+    smartAbility: Number(state.smartAbility ?? 0),
+    smartProf: Number(state.smartProf ?? 0)
+  };
+}
+

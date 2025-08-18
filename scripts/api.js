@@ -6,6 +6,7 @@ import { rollDamage } from "./core/engine/damage.js";
 import { normalizeActor, listEquippedWeapons } from "./core/adapter/sw5e.js";
 import { setLastUsed } from "./core/services/presets.js";
 
+
 export const API = {
   async openAttack(seed = {}) {
     try {
@@ -41,6 +42,7 @@ export const API = {
     const weapons = listEquippedWeapons(actor);
     const sel = await openDamageDialog({ actor, weapons });
     if (!sel) return;
+    await setLastUsed(actor, "damage", sel);
     return rollDamage({ actor: normalizeActor(actor), weaponId: sel.weaponId, state: sel });
   }
 };

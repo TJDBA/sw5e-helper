@@ -61,27 +61,29 @@
     </label>
   </section>
 
-  {{!-- -------- Additional Damage Modifiers ------- --}}
-  <section class="row extra-head">
-    <label>{{localize "SW5EHELPER.ExtraModsDmg"}}</label>
-    <button type="button" class="btn" data-action="add-mod">Add Mod</button>
+  {{!-- ======= Smart Weapon Override Row ========= --}}
+  <section class="row smart">
+    <label class="chk">
+      <input type="checkbox" name="smart" {{#if smart}}checked{{/if}}>
+      {{localize "SW5EHELPER.SmartWeapon"}}
+    </label>
+
+    <label for="smartAbility">{{localize "SW5EHELPER.SmartAbility"}}</label>
+    <input type="number" id="smartAbility" name="smartAbility" value="{{smartAbility}}" style="width:4.2rem;">
+
+    <label for="smartProf">{{localize "SW5EHELPER.SmartProf"}}</label>
+    <input type="number" id="smartProf" name="smartProf" value="{{smartProf}}" style="width:4.2rem;">
   </section>
 
-  {{#each dmgModsList}}
-  <section class="row extra-item">
-    <input type="text" name="modFormula-{{@index}}" value="{{this.formula}}" placeholder="e.g. 1d6">
-    <select name="modType-{{@index}}">
-      <option value="kinetic" {{#if (eq this.type "kinetic")}}selected{{/if}}>kinetic</option>
-      <option value="energy"  {{#if (eq this.type "energy")}}selected{{/if}}>energy</option>
-      <option value="ion"     {{#if (eq this.type "ion")}}selected{{/if}}>ion</option>
-      <option value="force"   {{#if (eq this.type "force")}}selected{{/if}}>force</option>
-      <option value="—"       {{#if (eq this.type "—")}}selected{{/if}}>—</option>
-    </select>
-    <button type="button" class="btn ghost" data-action="del-mod" data-index="{{@index}}">Delete This Mod</button>
+  {{!-- ======== Universal Options Row 2 ========= --}}
+  <section class="row uni2">
+    <label for="dmgMods">{{localize "SW5EHELPER.ExtraModsDmg"}}</label>
+    <input type="text" id="dmgMods" name="dmgMods"
+           placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}"
+           value="{{dmgMods}}">
   </section>
-  {{/each}}
 
-  {{!-- ---- Crit / Separate / Superiority row ---- --}}
+  {{!-- ---- Flags: Crit / Separate Per Target ---- --}}
   <section class="row flags">
     <label class="chk">
       <input type="checkbox" name="crit" {{#if crit}}checked{{/if}}>
@@ -92,32 +94,19 @@
       <input type="checkbox" name="separate" {{#if separate}}checked{{/if}}>
       {{localize "SW5EHELPER.SeparatePerTargetDmg"}}
     </label>
-
-    <label class="chk">
-      <input type="checkbox" name="superiority" {{#if superiority}}checked{{/if}} {{#if separate}}disabled{{/if}}>
-      {{localize "SW5EHELPER.SuperiorityDie"}}
-    </label>
   </section>
 
-  {{!-- ============ Roll Buttons Row ============ --}}
+  {{!-- ============ Roll Mode (radio) ============ --}}
   <section class="row rollmode">
-    <button type="button" class="seg-btn {{#if (eq adv 'adv')}}active{{/if}}" data-adv="adv">
-      {{localize "SW5EHELPER.Adv"}}
-    </button>
-    <button type="button" class="seg-btn {{#if (eq adv 'normal')}}active{{/if}}" data-adv="normal">
-      {{localize "SW5EHELPER.Normal"}}
-    </button>
-    <button type="button" class="seg-btn {{#if (eq adv 'dis')}}active{{/if}}" data-adv="dis">
-      {{localize "SW5EHELPER.Disadv"}}
-    </button>
+    <label><input type="radio" name="advMode" value="adv"    {{#if (eq adv "adv")}}checked{{/if}}>    {{localize "SW5EHELPER.Adv"}}</label>
+    <label><input type="radio" name="advMode" value="normal" {{#if (eq adv "normal")}}checked{{/if}}> {{localize "SW5EHELPER.Normal"}}</label>
+    <label><input type="radio" name="advMode" value="dis"    {{#if (eq adv "dis")}}checked{{/if}}>    {{localize "SW5EHELPER.Disadv"}}</label>
   </section>
 
-  {{!-- ============ Cancel Button Row =========== --}}
+  {{!-- ============ Footer (Roll/Cancel) ========== --}}
   <footer class="row footer">
-    <button type="submit" class="btn primary">Roll</button>
-    <button type="button" class="btn cancel" data-action="cancel">
-      {{localize "SW5EHELPER.Cancel"}}
-    </button>
+    <button type="button" class="btn primary" data-action="roll">Roll</button>
+    <button type="button" class="btn cancel" data-action="cancel">{{localize "SW5EHELPER.Cancel"}}</button>
   </footer>
 
 </form>
