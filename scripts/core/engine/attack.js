@@ -73,12 +73,32 @@ export async function rollAttack({ actor, weaponId, state }) {
   const advTag = state.adv === "adv" ? "kh1" : state.adv === "dis" ? "kl1" : "";
   const d20 = advTag ? `2d20${advTag}` : "1d20";
 
+//  const parts = [d20];
+//  if (abilityMod) parts.push(signed(abilityMod));
+//  if (profBonus)  parts.push(signed(profBonus));
+//  if (itemAtk)    parts.push(signed(itemAtk));
+//  if (state.atkMods) parts.push(`(${state.atkMods})`);
+//  const formula = parts.join(" ");
+
   const parts = [d20];
   if (abilityMod) parts.push(signed(abilityMod));
   if (profBonus)  parts.push(signed(profBonus));
   if (itemAtk)    parts.push(signed(itemAtk));
-  if (state.atkMods) parts.push(`(${state.atkMods})`);
+
+  // --- FIX: normalize user Attack Mod expression ---
+  let atkExpr = (state.atkMods || "").trim();
+  if (atkExpr) {
+    if (/^[+\-]/.test(atkExpr)) {
+      // User already started with + or -, keep as-is (optional: wrap)
+      parts.push(atkExpr);
+    } else {
+      // No leading operator → add a plus and group it
+      parts.push(`+ (${atkExpr})`);
+    }
+  }
+
   const formula = parts.join(" ");
+
 
   //const R = (CONFIG.Dice && (CONFIG.Dice.D20Roll || CONFIG.Dice.Roll)) || Roll;
   const R = Roll;
