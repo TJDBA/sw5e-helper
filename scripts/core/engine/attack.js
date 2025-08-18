@@ -1,3 +1,4 @@
+// scripts/core/engine/attack.js
 import { getWeaponById } from "../adapter/sw5e.js";
 
 const signed = n => `${n >= 0 ? "+" : ""}${n}`;
@@ -32,7 +33,6 @@ function d20DetailText(roll) {
   const vals = (d20.results || []).map(r => r.result);
   const kept = keptNatD20(roll);
   if (vals.length <= 1) return ` (d20=${kept})`;
-  // e.g. (d20=17; rolled 12,17)
   return ` (d20=${kept}; rolled ${vals.join(",")})`;
 }
 
@@ -69,7 +69,7 @@ export async function rollAttack({ actor, weaponId, state }) {
   const profBonus  = item.system?.proficient ? (actor.prof ?? 0) : 0;
   const itemAtk    = Number(item.system?.attackBonus || 0);
 
-  // Real adv/dis
+  // === Adv/Dis expression ===
   const advTag = state.adv === "adv" ? "kh1" : state.adv === "dis" ? "kl1" : "";
   const d20 = advTag ? `2d20${advTag}` : "1d20";
 
@@ -80,11 +80,20 @@ export async function rollAttack({ actor, weaponId, state }) {
   if (state.atkMods) parts.push(`(${state.atkMods})`);
   const formula = parts.join(" ");
 
-  const R = (CONFIG.Dice && (CONFIG.Dice.D20Roll || CONFIG.Dice.Roll)) || Roll;
+  //const R = (CONFIG.Dice && (CONFIG.Dice.D20Roll || CONFIG.Dice.Roll)) || Roll;
+  const R = Roll;
   const data = actor.actor.getRollData?.() ?? {};
   const targets = Array.from(game.user?.targets ?? []);
 
-  // Make a roll (no manual Dice So Nice call — DSN will animate from the chat message)
+  // DEBUG: dump everything to the console
+  console.debug("SW5E Helper (engine) attack debug:", {
+    state: structuredClone(state),
+    abilityKey, abilityMod, profBonus, itemAtk,
+    advTag, d20, formula,
+    targets: targets.map(t => ({ id: t.id, name: t.name }))
+  });
+
+  // Helper to roll once (DSN will animate from ChatMessage because we pass rolls)
   const makeRoll = async () => {
     const r = new R(formula, data);
     if (typeof r.evaluate === "function") await r.evaluate({ async: true });
@@ -92,7 +101,7 @@ export async function rollAttack({ actor, weaponId, state }) {
     return r;
   };
 
-  // Single combined card
+  // Build a single combined card
   const lines = [];
   const rolls = [];
 
@@ -123,9 +132,20 @@ export async function rollAttack({ actor, weaponId, state }) {
   const list = lines.length ? `<ul style="margin:.5em 1em;">${lines.join("")}</ul>` : "";
   const formulaHtml = `<code>${formula}</code>`;
 
+  // GM-only inline debug so you can see exactly what was used
+  const gmDebug = game.user?.isGM
+    ? `<details style="margin-top:.4em;"><summary>Debug</summary>
+         <div style="font-family:monospace;font-size:11px;">
+           adv="${state.adv}", advTag="${advTag}", d20="${d20}"<br/>
+           ability=${abilityKey} (${signed(abilityMod)}), prof=${signed(profBonus)}, itemAtk=${signed(itemAtk)}<br/>
+           targets=[${targets.map(t => t.name).join(", ")}]
+         </div>
+       </details>`
+    : "";
+
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: actor.actor }),
-    flavor: `${header}<div>${sub}<br>${formulaHtml}</div>${list}`,
+    flavor: `${header}<div>${sub}<br>${formulaHtml}</div>${list}${gmDebug}`,
     type: (CONST?.CHAT_MESSAGE_TYPES?.ROLL ?? 5),
     rolls
   });
