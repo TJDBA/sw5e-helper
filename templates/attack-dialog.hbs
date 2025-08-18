@@ -93,9 +93,9 @@
 
 {{!-- ============ Roll Mode (radio) ============ --}}
 <section class="row rollmode">
-  <label><input type="radio" name="advMode" value="adv"> {{localize "SW5EHELPER.Adv"}}</label>
-  <label><input type="radio" name="advMode" value="normal" checked> {{localize "SW5EHELPER.Normal"}}</label>
-  <label><input type="radio" name="advMode" value="dis"> {{localize "SW5EHELPER.Disadv"}}</label>
+  <label><input type="radio" name="advMode" value="adv"    {{#if (eq adv "adv")}}checked{{/if}}>    {{localize "SW5EHELPER.Adv"}}</label>
+  <label><input type="radio" name="advMode" value="normal" {{#if (eq adv "normal")}}checked{{/if}}> {{localize "SW5EHELPER.Normal"}}</label>
+  <label><input type="radio" name="advMode" value="dis"    {{#if (eq adv "dis")}}checked{{/if}}>    {{localize "SW5EHELPER.Disadv"}}</label>
 </section>
 
 {{!-- ============ Footer (Roll/Cancel) ========== --}}

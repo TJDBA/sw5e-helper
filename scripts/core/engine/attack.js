@@ -64,10 +64,13 @@ export async function rollAttack({ actor, weaponId, state }) {
   const item = getWeaponById(actor.actor, weaponId);
   if (!item) return ui.notifications.warn("No weapon selected.");
 
+  // abilityKey is still derived from item or user selection
+  const usingSmart = !!state.smart;
   const abilityKey = state.ability || deriveDefaultAbility(item);
-  const abilityMod = actor.abilities?.[abilityKey]?.mod ?? 0;
-  const profBonus  = item.system?.proficient ? (actor.prof ?? 0) : 0;
-  const itemAtk    = Number(item.system?.attackBonus || 0);
+  const abilityMod = usingSmart? Number(state.smartAbility ?? 0) : (actor.abilities?.[abilityKey]?.mod ?? 0);
+  const profBonus = usingSmart? Number(state.smartProf ?? 0) : (item.system?.proficient ? (actor.prof ?? 0) : 0);
+  const itemAtk = Number(item.system?.attackBonus || 0);
+
 
   // === Adv/Dis expression ===
   const advTag = state.adv === "adv" ? "kh1" : state.adv === "dis" ? "kl1" : "";

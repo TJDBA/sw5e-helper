@@ -4,6 +4,7 @@ import { openDamageDialog } from "./ui/DamageDialog.js"; // keep as-is for later
 import { rollAttack } from "./core/engine/attack.js";
 import { rollDamage } from "./core/engine/damage.js";
 import { normalizeActor, listEquippedWeapons } from "./core/adapter/sw5e.js";
+import { setLastUsed } from "./core/services/presets.js";
 
 export const API = {
   async openAttack(seed = {}) {
@@ -22,6 +23,9 @@ export const API = {
       const sel = await openAttackDialog({ actor, weapons, seed });
       if (!sel) { console.debug("SW5E Helper (API) user cancelled Attack"); return; }
       console.debug("SW5E Helper (API) selection from dialog", sel);
+
+      // NEW: remember last-used for this actor
+      await setLastUsed(actor, "attack", sel);
 
       return rollAttack({ actor: normalizeActor(actor), weaponId: sel.weaponId, state: sel });
     } catch (e) {
