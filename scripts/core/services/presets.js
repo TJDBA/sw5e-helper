@@ -88,14 +88,35 @@ export function sanitizeDamageState(state) {
     weaponId: state.weaponId || "",
     ability: state.ability || "",
     offhand: !!state.offhand,
-    dmgMods: state.dmgMods || "",
-    separate: !!state.separate,
-    adv: state.adv || "normal",
-    crit: !!state.crit,
-    // Smart Weapon (persist for damage too)
+
+    // Smart Weapon (damage uses only ability)
     smart: !!state.smart,
     smartAbility: Number(state.smartAbility ?? 0),
-    smartProf: Number(state.smartProf ?? 0)
+
+    // Extra rows
+    extraRows: Array.isArray(state.extraRows)
+      ? state.extraRows.map(r => ({
+          id: r.id ?? crypto.randomUUID?.() ?? String(Math.random()).slice(2),
+          formula: String(r.formula || "").trim(),
+          type: String(r.type || "kinetic"),
+          inCrit: !!r.inCrit
+        }))
+      : [],
+
+    // Crit & separate
+    crit: !!state.crit,
+    separate: !!state.separate,
+
+    // Adv/Dis (carried for visibility; engine applies only to eligible pool)
+    adv: state.adv || "normal",
+
+    // Min-die (per-die thresholds)
+    useMinDie: !!state.useMinDie,
+
+    // Once-per-turn toggles
+    otpDamageAdv: !!state.otpDamageAdv,
+    otpDamageDis: !!state.otpDamageDis
   };
 }
+
 

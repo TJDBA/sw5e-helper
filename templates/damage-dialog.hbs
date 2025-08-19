@@ -15,24 +15,14 @@
       {{/each}}
     </select>
 
-    <button type="button" class="btn" data-action="save">
-      {{localize "SW5EHELPER.Save"}}
-    </button>
-
-    <button type="button" class="btn warn" data-action="delete">
-      {{localize "SW5EHELPER.Delete"}}
-    </button>
+    <button type="button" class="btn" data-action="save">{{localize "SW5EHELPER.Save"}}</button>
+    <button type="button" class="btn warn" data-action="delete">{{localize "SW5EHELPER.Delete"}}</button>
   </section>
 
   {{!-- ============ Quick Presets Row ============ --}}
   <section class="row quick">
-    <button type="button" class="btn" data-action="load-last">
-      {{localize "SW5EHELPER.LoadLastUsed"}}
-    </button>
-
-    <button type="button" class="btn ghost" data-action="clear">
-      {{localize "SW5EHELPER.Clear"}}
-    </button>
+    <button type="button" class="btn" data-action="load-last">{{localize "SW5EHELPER.LoadLastUsed"}}</button>
+    <button type="button" class="btn ghost" data-action="clear">{{localize "SW5EHELPER.Clear"}}</button>
   </section>
 
   {{!-- =========== Weapon Selection Row ========== --}}
@@ -71,16 +61,53 @@
     <label for="smartAbility">{{localize "SW5EHELPER.SmartAbility"}}</label>
     <input type="number" id="smartAbility" name="smartAbility" value="{{smartAbility}}" style="width:4.2rem;">
 
-    <label for="smartProf">{{localize "SW5EHELPER.SmartProf"}}</label>
-    <input type="number" id="smartProf" name="smartProf" value="{{smartProf}}" style="width:4.2rem;">
+    {{!-- No proficiency for damage in Smart mode --}}
   </section>
 
-  {{!-- ======== Universal Options Row 2 ========= --}}
-  <section class="row uni2">
-    <label for="dmgMods">{{localize "SW5EHELPER.ExtraModsDmg"}}</label>
-    <input type="text" id="dmgMods" name="dmgMods"
-           placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}"
-           value="{{dmgMods}}">
+  {{!-- ======== Additional Mods (builder) ========= --}}
+  <section class="row addmods">
+    <div class="bar" style="display:flex;gap:.5rem;align-items:center;">
+      <label>{{localize "SW5EHELPER.ExtraModsDmg"}}</label>
+      <button type="button" class="btn" data-action="add-row">{{localize "SW5EHELPER.AddMod"}}</button>
+    </div>
+    <div class="modlist">
+      {{#each extraRows}}
+      <div class="modrow" data-id="{{this.id}}" style="display:flex;gap:.5rem;align-items:center;margin:.25rem 0;">
+        <input type="text" class="mod-formula" value="{{this.formula}}" placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}" style="flex:1;">
+        <select class="mod-type">
+          {{#each ../damageTypes}}
+            <option value="{{this}}" {{#if (eq ../this.type this)}}selected{{/if}}>{{this}}</option>
+          {{/each}}
+        </select>
+        <label class="chk"><input type="checkbox" class="mod-incrit" {{#if this.inCrit}}checked{{/if}}> {{localize "SW5EHELPER.IncludeInCrit"}}</label>
+        <button type="button" class="btn warn" data-action="del-row" title="{{localize 'SW5EHELPER.Delete'}}">🗑</button>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
+  {{!-- ---- Min die (temporary testing UI) ---- --}}
+<section class="row mindie">
+  <label class="chk">
+    <input type="checkbox" name="useMinDie" {{#if useMinDie}}checked{{/if}}>
+    {{localize "SW5EHELPER.UseMinDie"}}
+  </label>
+  <small style="opacity:.75;">
+    (d4→2, d6→2, d8→3, d10→4, d12→5, d20→8)
+  </small>
+</section>
+
+  {{!-- ---- Once-per-turn features ---- --}}
+  <section class="row once">
+    <label class="lbl">{{localize "SW5EHELPER.OncePerTurn"}}</label>
+    <label class="chk">
+      <input type="checkbox" name="otpDamageAdv" {{#if otpDisabled}}disabled{{/if}} {{#if otpDamageAdv}}checked{{/if}}>
+      {{localize "SW5EHELPER.DmgAdv"}}
+    </label>
+    <label class="chk">
+      <input type="checkbox" name="otpDamageDis" {{#if otpDisabled}}disabled{{/if}} {{#if otpDamageDis}}checked{{/if}}>
+      {{localize "SW5EHELPER.DmgDis"}}
+    </label>
   </section>
 
   {{!-- ---- Flags: Crit / Separate Per Target ---- --}}
@@ -92,7 +119,7 @@
 
     <label class="chk">
       <input type="checkbox" name="separate" {{#if separate}}checked{{/if}}>
-      {{localize "SW5EHELPER.SeparatePerTargetDmg"}}
+      {{localize "SW5EHELPER.SeparatePerTargetDmg"}} <small>(disables once-per-turn)</small>
     </label>
   </section>
 

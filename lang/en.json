@@ -28,5 +28,44 @@
   "SW5EHELPER.Cancel": "Cancel",
   "SW5EHELPER.PresetSaved": "Preset saved.",
   "SW5EHELPER.PresetDeleted": "Preset deleted.",
-  "SW5EHELPER.NoActor": "Select a token or open a character."
+  "SW5EHELPER.NoActor": "Select a token or open a character.",
+  "SW5EHELPER.DamageTitle": "Damage Roll",
+
+  "SW5EHELPER.ExtraModsDmg": "Additional Damage Modifiers",
+  "SW5EHELPER.AddMod": "Add Mod",
+  "SW5EHELPER.ExtraModsDmgPH": "e.g. 1d4 fire or 2 + 1d6",
+  "SW5EHELPER.IncludeInCrit": "Include in crit",
+
+  "SW5EHELPER.UseMinDie": "Use minimum die thresholds",
+  "SW5EHELPER.MinDie": "Min die",
+
+  "SW5EHELPER.OncePerTurn": "Once per turn",
+  "SW5EHELPER.DmgAdv": "Damage Advantage",
+  "SW5EHELPER.DmgDis": "Damage Disadvantage",
+
+  "SW5EHELPER.Crit": "Critical Hit",
+  "SW5EHELPER.SeparatePerTargetDmg": "Separate per target",
+  "SW5EHELPER.SeparatePerTargetNote": "(disables once-per-turn)",
+
+  "SW5EHELPER.SmartWeapon": "Smart Weapon",
+  "SW5EHELPER.SmartAbility": "Ability Mod",
+
+  "SW5EHELPER.DamageType": {
+    "SW5EHELPER.kinetic": "kinetic",
+    "SW5EHELPER.energy": "energy",
+    "SW5EHELPER.ion": "ion",
+    "SW5EHELPER.acid": "acid",
+    "SW5EHELPER.cold": "cold",
+    "SW5EHELPER.fire": "fire",
+    "SW5EHELPER.force": "force",
+    "SW5EHELPER.lightning": "lightning",
+    "SW5EHELPER.necrotic": "necrotic",
+    "SW5EHELPER.poison": "poison",
+    "SW5EHELPER.psychic": "psychic",
+    "SW5EHELPER.sonic": "sonic",
+    "SW5EHELPER.true": "true"
+    },
+  
+    "SW5EHELPER.UseMinDie": "Use minimum die thresholds",
+    "SW5EHELPER.UseMinDieHelp": "(d4→2, d6→2, d8→3, d10→4, d12→5, d20→8)"
 }
