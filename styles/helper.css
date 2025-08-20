@@ -74,3 +74,5 @@
 .sw5e-helper-card .badge{margin-left:.25rem;padding:0 .25rem;border-radius:.25rem;font-size:.85em}
 .sw5e-helper-card .damage-line{display:flex;align-items:center;gap:.4rem}
 .sw5e-helper-card .applied-pill{margin-left:.4rem}
+.sw5e-helper-card .icons{display:inline-flex;gap:.25rem}
+.sw5e-helper-card .icon-btn{cursor:pointer;text-decoration:none}

@@ -99,6 +99,7 @@ export const API = {
           smart: !!sel.smart,
           smartAbility: Number(sel.smartAbility ?? 0),
           smartProf: Number(sel.smartProf ?? 0),
+          offhand: !!sel.offhand,
           itemAttackBonus: getItemAttackBonus(actor, item) || 0
         },
         targets

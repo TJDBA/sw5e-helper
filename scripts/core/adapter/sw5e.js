@@ -79,3 +79,46 @@ export function getItemAttackBonus(actor, item) {
     _constNumber(sys.bonuses?.rwak?.attack);
   return fromBonuses || 0;
 }
+
+/** Resolve "sceneId:tokenId" into { scene, token, actor } */
+export function resolveTokenRef(ref) {
+  const [sceneId, tokenId] = (ref || "").split(":");
+  const scene = game.scenes.get(sceneId);
+  const token = scene?.tokens?.get(tokenId);
+  const actor = token?.actor ?? null;
+  return { scene, token, actor };
+}
+
+/**
+ * Apply damage to a token's actor, returning the effective damage applied.
+ * PLACEHOLDERS:
+ *  - TODO: integrate damage resistances / immunities / reductions
+ *  - TODO: surface/queue reactions before applying (e.g., Uncanny Dodge)
+ */
+export async function applyDamageToToken(ref, amount, { half = false } = {}) {
+  const { actor } = resolveTokenRef(typeof ref === "string" ? ref : `${ref.sceneId}:${ref.tokenId}`);
+  if (!actor) return 0;
+
+  // Placeholder hooks (no-op for now)
+  // const mitigated = await Hooks.call("sw5e-helper.preApplyDamage", { actor, amount, half });
+  // if (mitigated === false) return 0;
+
+  let dmg = Number(amount) || 0;
+  if (half) dmg = Math.floor(dmg / 2);
+
+  // TODO: apply resistances/reductions here (placeholder)
+  // e.g., dmg = applyMitigations(actor, dmg);
+
+  const hp = actor.system?.attributes?.hp;
+  if (!hp) return 0;
+
+  const before = Number(hp.value ?? 0);
+  const after = Math.max(0, before - dmg);
+
+  await actor.update({ "system.attributes.hp.value": after });
+
+  // Placeholder post-hook
+  // Hooks.callAll("sw5e-helper.postApplyDamage", { actor, applied: before - after });
+
+  return before - after;
+}

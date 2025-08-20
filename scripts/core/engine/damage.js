@@ -1,6 +1,9 @@
 // scripts/core/engine/damage.js
 import { getWeaponById } from "../adapter/sw5e.js";
 
+// scripts/core/engine/damage.js
+const MOD = "sw5e-helper";
+
 const signed = n => `${n >= 0 ? "+" : ""}${n}`;
 
 // Feature flip: allow ability mod to damage on off-hand attacks
@@ -237,3 +240,93 @@ export async function rollDamage({ actor, weaponId, state }) {
     rolls
   });
 }
+  export async function quickDamageFromState({ actor, item, state }) {
+    const opt = state?.options ?? {};
+    const separate = !!opt.separate;
+    const saveOnly = !!opt.saveOnly;
+
+    // base weapon formulas and whether they use @mod
+    const { parts: baseParts, usesAtMod } = weaponParts(item);
+    let base = baseParts.join(" + ") || "0";
+
+    // ability mod (smart override or chosen/default ability)
+    const abilityKey = opt.ability || item?.system?.ability || deriveDefaultAbility(item);
+    let abilityMod = opt.smart ? Number(opt.smartAbility ?? 0)
+                              : Number(foundry.utils.getProperty(actor, `system.abilities.${abilityKey}.mod`) ?? 0);
+
+    // off-hand rule: no positive mod unless feature flag flips it
+    if (opt.offhand && !ALLOW_OFFHAND_DAMAGE_MOD && abilityMod > 0) abilityMod = 0;
+
+    // crit prep: doubling weapon dice only; Brutal after doubling
+    const bru = getBrutal(item);
+    const makeFormula = (isCrit) => {
+      let f = isCrit ? doubleDice(base) : base;
+      if (isCrit && bru > 0 && f) {
+        const faces = firstDieFaces(f);
+        if (faces) f = `${f} + ${bru}d${faces}`;
+      }
+      if (!usesAtMod && abilityMod) f = `${f} + ${signed(abilityMod)}`;
+      return f;
+    };
+
+    // roll helper
+    const doRoll = async (formula) => {
+      if (!formula || !formula.trim()) return { total: 0, roll: null };
+      const data = usesAtMod ? { mod: abilityMod } : {};
+      const r = new Roll(formula, data);
+      await r.evaluate({ async: true });
+      try { await game.dice3d?.showForRoll?.(r, game.user, true); } catch (_) {}
+      return { total: r.total ?? 0, roll: r };
+    };
+
+    const perTargetTotals = new Map();
+    const rolls = [];
+
+    // Save-only: treat all eligible as normal hits
+    if (saveOnly) {
+      if (separate) {
+        for (const t of state.targets ?? []) {
+          const { total, roll } = await doRoll(makeFormula(false));
+          if (roll) rolls.push(roll);
+          perTargetTotals.set(`${t.sceneId}:${t.tokenId}`, total);
+        }
+      } else {
+        const { total, roll } = await doRoll(makeFormula(false));
+        if (roll) rolls.push(roll);
+        for (const t of state.targets ?? []) perTargetTotals.set(`${t.sceneId}:${t.tokenId}`, total);
+      }
+      return { perTargetTotals, rolls, breakdown: `${base} + ability(${abilityMod})` };
+    }
+
+    // With attack outcomes
+    if (separate) {
+      for (const t of state.targets ?? []) {
+        const s = t.attack?.status;
+        if (!s || s === "miss" || s === "fumble") continue;
+        const isCrit = s === "crit";
+        const { total, roll } = await doRoll(makeFormula(isCrit));
+        if (roll) rolls.push(roll);
+        perTargetTotals.set(`${t.sceneId}:${t.tokenId}`, total);
+      }
+    } else {
+      const critRefs = [], hitRefs = [];
+      for (const t of state.targets ?? []) {
+        const s = t.attack?.status;
+        if (!s || s === "miss" || s === "fumble") continue;
+        (s === "crit" ? critRefs : hitRefs).push(`${t.sceneId}:${t.tokenId}`);
+      }
+      if (critRefs.length) {
+        const { total, roll } = await doRoll(makeFormula(true));
+        if (roll) rolls.push(roll);
+        for (const ref of critRefs) perTargetTotals.set(ref, total);
+      }
+      if (hitRefs.length) {
+        const { total, roll } = await doRoll(makeFormula(false));
+        if (roll) rolls.push(roll);
+        for (const ref of hitRefs) perTargetTotals.set(ref, total);
+      }
+    }
+
+    return { perTargetTotals, rolls, breakdown: `${base} + ability(${abilityMod})` };
+  }
+
