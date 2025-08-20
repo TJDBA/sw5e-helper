@@ -15,8 +15,8 @@
     }
   ],
   "esmodules": [
-    "scripts/api.js",
-    "scripts/register.js"
+    "scripts/register.js",
+    "scripts/api.js"
   ],
    "styles": ["styles/helper.css"],
   "languages": [
