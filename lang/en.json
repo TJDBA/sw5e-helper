@@ -29,27 +29,17 @@
   "SW5EHELPER.PresetSaved": "Preset saved.",
   "SW5EHELPER.PresetDeleted": "Preset deleted.",
   "SW5EHELPER.NoActor": "Select a token or open a character.",
-  "SW5EHELPER.DamageTitle": "Damage Roll",
 
-  "SW5EHELPER.ExtraModsDmg": "Additional Damage Modifiers",
   "SW5EHELPER.AddMod": "Add Mod",
   "SW5EHELPER.ExtraModsDmgPH": "e.g. 1d4 fire or 2 + 1d6",
   "SW5EHELPER.IncludeInCrit": "Include in crit",
-
-  "SW5EHELPER.UseMinDie": "Use minimum die thresholds",
-  "SW5EHELPER.MinDie": "Min die",
 
   "SW5EHELPER.OncePerTurn": "Once per turn",
   "SW5EHELPER.DmgAdv": "Damage Advantage",
   "SW5EHELPER.DmgDis": "Damage Disadvantage",
 
-  "SW5EHELPER.Crit": "Critical Hit",
-  "SW5EHELPER.SeparatePerTargetDmg": "Separate per target",
   "SW5EHELPER.SeparatePerTargetNote": "(disables once-per-turn)",
-
-  "SW5EHELPER.SmartWeapon": "Smart Weapon",
-  "SW5EHELPER.SmartAbility": "Ability Mod",
-
+  
   "SW5EHELPER.DamageType": {
     "SW5EHELPER.kinetic": "kinetic",
     "SW5EHELPER.energy": "energy",
@@ -65,7 +55,58 @@
     "SW5EHELPER.sonic": "sonic",
     "SW5EHELPER.true": "true"
     },
-  
-    "SW5EHELPER.UseMinDie": "Use minimum die thresholds",
-    "SW5EHELPER.UseMinDieHelp": "(d4→2, d6→2, d8→3, d10→4, d12→5, d20→8)"
+    
+  "SW5EHELPER.UseMinDie": "Use minimum die thresholds",
+  "SW5EHELPER.UseMinDieHelp": "(d4→2, d6→2, d8→3, d10→4, d12→5, d20→8)",
+  "SW5EHELPER.MinDie": "Min die",
+
+  "SW5EHELPER.AttackConfiguration": "Attack Configuration",
+  "SW5EHELPER.LoadLast": "Load Last",
+  "SW5EHELPER.SavePreset": "Save Preset",
+  "SW5EHELPER.LoadPreset": "Load Preset",
+  "SW5EHELPER.Preset": "Preset",
+  "SW5EHELPER.Load": "Load",
+  "SW5EHELPER.DeletePreset": "Delete Preset",
+
+  "SW5EHELPER.BasicOptions": "Basic Options",
+  "SW5EHELPER.AttackWith": "Attack With",
+  "SW5EHELPER.WeaponAttackBonus": "Weapon Attack Bonus",
+  "SW5EHELPER.SmartWeaponOverride": "Smart Weapon Override",
+
+  "SW5EHELPER.SavingThrow": "Saving Throw",
+  "SW5EHELPER.RequireSaveOnHit": "Require save on hit",
+  "SW5EHELPER.SaveType": "Type",
+  "SW5EHELPER.SaveDCFormula": "DC (formula)",
+  "SW5EHELPER.SaveOnly": "Save only (skip attack roll)",
+  "SW5EHELPER.SaveOnlyNeedsFields": "Choose a save type and DC before using Save Only.",
+
+  "SW5EHELPER.ClassFeatures": "Class Features",
+  "SW5EHELPER.NoFeatures": "No applicable features",
+
+  "SW5EHELPER.RollAttack": "Roll Attack",
+
+  "SW5EHELPER.PresetWrongWeapon": "That preset is for a different weapon.",
+  "SW5EHELPER.LoadedLast": "Loaded last used settings.",
+  "SW5EHELPER.SmartValuesRequired": "Enter ability mod and proficiency for Smart Override.",
+
+  "SW5EHELPER.QuickDamage": "Quick Damage",
+  "SW5EHELPER.ModDamage": "Modified Damage",
+  "SW5EHELPER.RollAllSaves": "Roll All Saves",
+  "SW5EHELPER.ApplyAllFull": "Apply All (Full)",
+  "SW5EHELPER.ExpandAll": "Expand All",
+  "SW5EHELPER.CollapseAll": "Collapse All",
+
+  "SW5EHELPER.SaveRequired": "Save Required",
+  "SW5EHELPER.RollSave": "Roll Save",
+  "SW5EHELPER.Damage": "Damage",
+  "SW5EHELPER.Applied": "Applied",
+  "SW5EHELPER.ApplyFull": "Apply Full",
+  "SW5EHELPER.ApplyHalf": "Apply Half",
+  "SW5EHELPER.ApplyNone": "Apply No Damage",
+  "SW5EHELPER.Success": "success",
+  "SW5EHELPER.Fail": "fail",
+  "SW5EHELPER.SaveDC": "DC",
+
+  "SW5EHELPER.AttackFormulaTooltip": "Attack formula breakdown",
+  "SW5EHELPER.DamageFormulaTooltip": "Damage formula breakdown"
 }
