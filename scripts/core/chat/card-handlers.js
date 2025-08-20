@@ -3,6 +3,8 @@ const MOD = "sw5e-helper";
 import { renderAttackCard } from "./card-renderer.js";
 import { quickDamageFromState } from "../engine/damage.js";
 import { resolveTokenRef, applyDamageToToken } from "../adapter/sw5e.js";
+import { openDamageDialog } from "../../ui/DamageDialog.js";
+import { rollDamageForTargets } from "../engine/damage.js";
 
 function _getState(msg){ return foundry.utils.getProperty(msg, `flags.${MOD}.state`); }
 function _setState(msg,state){ return msg.update({ flags:{ [MOD]:{ state }}, content: renderAttackCard(state) }); }
@@ -116,8 +118,91 @@ Hooks.on("renderChatMessage", (message, html) => {
       return;
     }
 
-    // === PLACEHOLDERS (mod dialog paths) ===
-    const notYet = new Set(["card-mod-damage","row-mod-damage","show-attack-formula","show-damage-formula"]);
-    if (notYet.has(action)) ui.notifications.info("SW5E Helper: Modified damage / breakdown coming next.");
+    
+  // Header 🎲 (card-mod-damage)
+  if (action === "card-mod-damage") {
+    if (!(game.user.isGM || state.authorId === game.user.id)) return ui.notifications.warn("SW5E Helper: Only card owner or GM.");
+    const actor = game.actors.get(state.actorId);
+    const item  = actor?.items?.get(state.itemId);
+    if (!actor || !item) return;
+
+    // Seed from card options; weapon locked in dialog by passing the item as the only weapon
+    const cfg = await openDamageDialog({
+      actor,
+      item,
+      weapons: [{ id: item.id, name: item.name }], // existing DamageDialog expects weapons list
+      seed: {
+        ability: state.options?.ability || "",
+        offhand: !!state.options?.offhand,
+        smart: !!state.options?.smart,
+        smartAbility: Number(state.options?.smartAbility ?? 0) || 0,
+        separate: !!state.options?.separate,
+        crit: false
+      }
+    });
+    if (!cfg) return; // cancelled
+
+    const refs = (state.targets ?? [])
+      .filter(t => t.attack?.status && t.attack.status !== "miss" && t.attack.status !== "fumble")
+      .map(t => `${t.sceneId}:${t.tokenId}`);
+
+    const critMap = {};
+    for (const t of (state.targets ?? [])) {
+      if (!t.attack) continue;
+      critMap[`${t.sceneId}:${t.tokenId}`] = (t.attack.status === "crit");
+    }
+
+    const { perTargetTotals, rolls } = await rollDamageForTargets({
+      actor, item, dmgState: cfg, targetRefs: refs, critMap
+    });
+
+    for (const t of (state.targets ?? [])) {
+      const ref = `${t.sceneId}:${t.tokenId}`;
+      const total = perTargetTotals.get(ref);
+      if (total != null && !t.damage?.applied) t.damage = { ...(t.damage ?? {}), total, applied: null };
+    }
+    if (rolls?.length) await _appendRolls(message, rolls);
+    await _setState(message, state);
+    return;
+  }
+
+  // Row 🎲 (row-mod-damage)
+  if (action === "row-mod-damage") {
+    const ref = el.dataset.targetRef;
+    const { actor } = resolveTokenRef(ref);
+    if (!actor) return ui.notifications.warn("SW5E Helper: Target not found.");
+    if (!(game.user.isGM || actor.isOwner)) return ui.notifications.warn("SW5E Helper: You lack permission for that target.");
+
+    const sActor = game.actors.get(state.actorId);
+    const item   = sActor?.items?.get(state.itemId);
+    const row    = (state.targets || []).find(t => `${t.sceneId}:${t.tokenId}` === ref);
+    const isCrit = row?.attack?.status === "crit";
+
+    const cfg = await openDamageDialog({
+      actor: sActor,
+      item: item,
+      weapons: [{ id: item.id, name: item.name }],
+      seed: {
+        ability: state.options?.ability || "",
+        offhand: !!state.options?.offhand,
+        smart: !!state.options?.smart,
+        smartAbility: Number(state.options?.smartAbility ?? 0) || 0,
+        separate: true,
+        crit: !!isCrit
+      }
+    });
+    if (!cfg) return;
+
+    const { perTargetTotals, rolls } = await rollDamageForTargets({
+      actor: sActor, item, dmgState: cfg, targetRefs: [ref], critMap: { [ref]: !!cfg.crit }
+    });
+
+    const total = perTargetTotals.get(ref);
+    if (total != null && !row?.damage?.applied) row.damage = { ...(row.damage ?? {}), total, applied: null };
+    if (rolls?.length) await _appendRolls(message, rolls);
+    await _setState(message, state);
+    return;
+  }
+
   }, { capture: true });
 });

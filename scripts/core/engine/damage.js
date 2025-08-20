@@ -330,3 +330,71 @@ export async function rollDamage({ actor, weaponId, state }) {
     return { perTargetTotals, rolls, breakdown: `${base} + ability(${abilityMod})` };
   }
 
+  // Roll damage for a set of target refs using a dialog state
+  export async function rollDamageForTargets({ actor, item, dmgState, targetRefs = [], critMap = {} }) {
+    const { parts: baseParts, usesAtMod } = weaponParts(item);
+    const base = baseParts.join(" + ") || "0";
+    const brutalVal = Number(item?.system?.properties?.brutal ?? 0) || 0;
+    const faces = firstDieFaces(base); // your helper
+
+    // ability mod (smart or chosen) with off-hand rule
+    const abilityKey = dmgState.ability || item?.system?.ability || deriveDefaultAbility(item);
+    let abilityMod = dmgState.smart ? Number(dmgState.smartAbility ?? 0)
+                                    : Number(foundry.utils.getProperty(actor, `system.abilities.${abilityKey}.mod`) ?? 0);
+    if (dmgState.offhand && abilityMod > 0) abilityMod = 0;
+
+    const extras = Array.isArray(dmgState.extraRows) ? dmgState.extraRows : [];
+
+    const makeFormula = (isCrit) => {
+      let f = isCrit ? doubleDice(base) : base;
+      if (isCrit && brutalVal > 0 && faces) f = `${f} + ${brutalVal}d${faces}`;
+      if (!usesAtMod && abilityMod) f = `${f} + ${signed(abilityMod)}`;
+      for (const r of extras) {
+        if (!r?.formula) continue;
+        const chunk = (isCrit && r.inCrit) ? doubleDice(r.formula) : r.formula;
+        f = `${f} + (${chunk})`;
+      }
+      return f;
+    };
+
+    const doRoll = async (isCrit) => {
+      const formula = makeFormula(isCrit);
+      const data = usesAtMod ? { mod: abilityMod } : {};
+      const roll = await (new Roll(formula, data)).evaluate({ async: true });
+      try { await game.dice3d?.showForRoll?.(roll, game.user, true); } catch (_) {}
+      return roll;
+    };
+
+    const perTargetTotals = new Map();
+    const rolls = [];
+
+    if (!targetRefs.length) {
+      // Manual, no targets selected: single roll using global crit toggle
+      const r = await doRoll(!!dmgState.crit);
+      rolls.push(r);
+      return { perTargetTotals, rolls, singleTotal: r.total ?? 0 };
+    }
+
+    if (dmgState.separate) {
+      // roll once per target (manual separate or card separate)
+      for (const ref of targetRefs) {
+        const r = await doRoll(!!critMap[ref]);
+        rolls.push(r);
+        perTargetTotals.set(ref, r.total ?? 0);
+      }
+    } else {
+      // shared: crit group + hit group
+      const critRefs = targetRefs.filter(ref => !!critMap[ref]);
+      const hitRefs  = targetRefs.filter(ref => !critMap[ref]);
+      if (critRefs.length) {
+        const r = await doRoll(true); rolls.push(r);
+        for (const ref of critRefs) perTargetTotals.set(ref, r.total ?? 0);
+      }
+      if (hitRefs.length) {
+        const r = await doRoll(false); rolls.push(r);
+        for (const ref of hitRefs) perTargetTotals.set(ref, r.total ?? 0);
+      }
+    }
+
+    return { perTargetTotals, rolls };
+  }

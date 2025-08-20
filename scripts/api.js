@@ -2,7 +2,7 @@
 import { openAttackDialog } from "./ui/AttackDialog.js";
 import { openDamageDialog } from "./ui/DamageDialog.js"; // keep as-is for later
 import { rollAttack } from "./core/engine/attack.js";
-import { rollDamage } from "./core/engine/damage.js";
+import { rollDamageForTargets } from "./core/engine/damage.js";
 import { normalizeActor, listEquippedWeapons, getWeaponById, getItemAttackBonus } from "./core/adapter/sw5e.js";
 import { setLastUsed } from "./core/services/presets.js";
 import { renderAttackCard } from "./core/chat/card-renderer.js";
@@ -115,13 +115,45 @@ export const API = {
   },
 
   async openDamage(seed = {}) {
-    // unchanged for now
     const actor = seed.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user?.character;
     if (!actor) return ui.notifications.warn(game.i18n.localize("SW5EHELPER.NoActor"));
+
     const weapons = listEquippedWeapons(actor);
-    const sel = await openDamageDialog({ actor, weapons });
-    if (!sel) return;
-    await setLastUsed(actor, "damage", sel);
-    return rollDamage({ actor: normalizeActor(actor), weaponId: sel.weaponId, state: sel });
+    if (!weapons.length) return ui.notifications.warn("SW5E Helper: No equipped weapons.");
+
+    // Let the user pick weapon (unlocked manual), or honor a passed weaponId
+    const cfg = await openDamageDialog({ actor, weapons, seed, scope: { type: "manual" } });
+    if (!cfg) return;
+
+    const weaponId = cfg.weaponId ?? weapons[0].id;
+    const item = getWeaponById(actor, weaponId);
+    if (!item) return ui.notifications.warn("SW5E Helper: Could not resolve weapon item.");
+
+    // Use currently selected targets on the canvas (manual flow)
+    const refs = Array.from(game.user.targets ?? []).map(
+      t => `${t.document?.parent?.id ?? canvas.scene?.id}:${t.id}`
+    );
+
+    // Manual crit applies to all (separate/shared handled by dialog when we roll)
+    const critMap = Object.fromEntries(refs.map(r => [r, !!cfg.crit]));
+
+    const { perTargetTotals, rolls, singleTotal } = await rollDamageForTargets({
+      actor, item, dmgState: cfg, targetRefs: refs, critMap
+    });
+
+    // Simple chat output for manual run
+    const lines = refs.length
+      ? Array.from(game.user.targets).map(t => {
+          const ref = `${t.document?.parent?.id ?? canvas.scene?.id}:${t.id}`;
+          const tot = perTargetTotals.get(ref) ?? 0;
+          return `<div>${t.name}: <strong>${tot}</strong></div>`;
+        })
+      : [`<div>${item.name}: <strong>${singleTotal ?? 0}</strong></div>`];
+
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: `<div class="sw5e-helper-manual-damage"><div><em>${item.name}</em> — ${game.i18n.localize("SW5EHELPER.Damage")}</div>${lines.join("")}</div>`,
+      rolls
+    });
   }
 };
