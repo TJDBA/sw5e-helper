@@ -16,7 +16,8 @@
   ],
   "esmodules": [
     "scripts/register.js",
-    "scripts/api.js"
+    "scripts/api.js",
+    "scripts/core/chat/card-handlers.js"
   ],
    "styles": ["styles/helper.css"],
   "languages": [
