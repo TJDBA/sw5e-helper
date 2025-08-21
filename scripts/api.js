@@ -77,7 +77,7 @@ export const API = {
       }
 
       // Map outcomes to frozen targets
-      const targets = frozenTargets.map(ft => {
+      const targets = await Promise.all(frozenTargets.map(async ft => {
         const row = { ...ft };
         if (attackResult?.targets?.length) {
           const out = attackResult.targets.find(r => r.tokenId === ft.tokenId);
@@ -98,12 +98,66 @@ export const API = {
           if (DEBUG) console.log(`SW5E DEBUG: Set saveonly status for ${ft.name}`, { summary: row.summary });
         }
         // Pre-seed save block if provided by dialog
-        if (sel?.save) {
+        if (sel?.save && (sel.save.dc || sel.save.dcFormula || sel.save.ability)) {
           const dcRaw = sel.save.dc ?? sel.save.dcFormula;
-          row.save = { abi: sel.save.ability, dc: Number(dcRaw) || dcRaw };
+          let finalDC = dcRaw;
+          let dcFormula = "";
+          
+          // Skip if no DC value and no ability specified (both checkboxes unchecked)
+          if (!dcRaw && !sel.save.ability) {
+            if (DEBUG) console.log(`SW5E DEBUG: No save data for ${ft.name}, skipping save block`);
+            // Don't create save object at all
+          } else {
+            // Process save data
+            if (typeof dcRaw === "string" && dcRaw.trim()) {
+            dcFormula = dcRaw;
+            try {
+              // Create a roll to evaluate the formula - use the actual actor document for rollData
+              const actorDoc = typeof actor.getRollData === "function" ? actor : game.actors.get(actor.id);
+              const rollData = actorDoc?.getRollData?.() || {};
+              const roll = new Roll(dcRaw, rollData);
+              if (typeof roll.evaluate === "function") {
+                await roll.evaluate({ async: true });
+              } else if (typeof roll.roll === "function") {
+                await roll.roll({ async: true });
+              }
+              finalDC = roll.total;
+            } catch (e) {
+              if (DEBUG) console.log("SW5E DEBUG: DC formula evaluation failed", { dcRaw, error: e });
+              // Try simple number conversion
+              finalDC = Number(dcRaw) || dcRaw;
+            }
+          } else if (typeof dcRaw === "number") {
+            finalDC = dcRaw;
+          } else {
+            // No save DC provided, try item default or calculate 8 + prof + mod
+            const itemDC = item?.system?.save?.dc;
+            if (itemDC) {
+              finalDC = itemDC;
+            } else {
+              // Default: 8 + prof + ability mod - use the actor document for proper access
+              const actorDoc = typeof actor.getRollData === "function" ? actor : game.actors.get(actor.id);
+              const abilityKey = sel.save.ability || "cha";
+              const abilityMod = actorDoc?.system?.abilities?.[abilityKey]?.mod ?? 0;
+              const profBonus = actorDoc?.system?.attributes?.prof ?? 0;
+              finalDC = 8 + profBonus + abilityMod;
+              dcFormula = `8 + @prof + @${abilityKey}.mod`;
+            }
+          }
+          
+            row.save = { 
+              ability: sel.save.ability, 
+              dc: finalDC,
+              formula: dcFormula 
+            };
+            
+            if (DEBUG) console.log(`SW5E DEBUG: Save DC calculation for ${ft.name}`, { 
+              dcRaw, finalDC, dcFormula, save: row.save 
+            });
+          }
         }
         return row;
-      });
+      }));
       
       if (DEBUG) console.log("SW5E DEBUG: Final targets array", targets);
 
@@ -117,6 +171,7 @@ export const API = {
         weaponId: item?.id,
         itemName: item?.name,
         weaponImg: item?.img ?? item?.system?.img,
+        hasSave: !!sel.saveOnHit || !!sel.saveOnly,
         options: {
           separate: !!sel.separate,
           adv: sel.adv ?? "normal",

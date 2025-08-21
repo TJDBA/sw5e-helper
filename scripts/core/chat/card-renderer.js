@@ -27,11 +27,10 @@ export function renderAttackCard(state) {
   // Header controls (icon-first) + GM toolbar + Expand/Collapse all
   const hdrActions = `
     <div class="card-damage-controls">
-      <a class="icon-btn" data-action="card-quick-damage" title="${l("SW5EHELPER.QuickDamage")}" aria-label="${l("SW5EHELPER.QuickDamage")}">⚡</a>
-      <a class="icon-btn" data-action="card-mod-damage"   title="${l("SW5EHELPER.ModDamage")}"   aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>
+      ${gmHideRollAllDamage ? "" : `<a class="icon-btn" data-action="card-quick-damage" title="${l("SW5EHELPER.QuickDamage")}" aria-label="${l("SW5EHELPER.QuickDamage")}">⚡</a>`}
+      ${gmHideRollAllDamage ? "" : `<a class="icon-btn" data-action="card-mod-damage"   title="${l("SW5EHELPER.ModDamage")}"   aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>`}
       ${isGM ? `
         <div class="gm-toolbar">
-          ${gmHideRollAllDamage ? "" : `<a class="mini-btn" data-action="gm-roll-damage">${l("SW5EHELPER.RollAllDamage")}</a>`}
           ${gmHideRollAllSaves  ? "" : `<a class="mini-btn" data-action="gm-roll-all-saves">${l("SW5EHELPER.RollAllSaves")}</a>`}
           <a class="mini-btn" data-action="gm-apply-all-full">${l("SW5EHELPER.ApplyAllFull")}</a>
         </div>` : ""
@@ -41,7 +40,7 @@ export function renderAttackCard(state) {
   `;
 
   // Build all target rows
-  const rows = (state.targets || []).map(t => {
+  const rows = (state.targets || []).map((t, index) => {
     const ref = _refOf(t);
     const kept = Number.isFinite(t?.summary?.keptDie) ? ` (${t.summary.keptDie})` : "";
     const atk = Number.isFinite(t?.summary?.attackTotal) ? `${t.summary.attackTotal}${kept}` : "—";
@@ -54,6 +53,17 @@ export function renderAttackCard(state) {
       saveonly: "status-saveonly",
       pending: "status-pending"
     })[status] || "status-pending";
+
+    const statusIcon = ({
+      hit: "●",
+      miss: "○", 
+      crit: "◆",
+      fumble: "○",
+      saveonly: "🛡️",
+      pending: "●"
+    })[status] || "●";
+
+    const statusText = status.toUpperCase();
     
     if (DEBUG) console.log(`SW5E DEBUG: Processing target ${t.name}`, { 
       ref, 
@@ -70,18 +80,20 @@ export function renderAttackCard(state) {
     const summaryActions = (!t.damage || t.damage?.applied)
       ? `${t.damage?.applied ? "✓" : ""} ${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}`
       : `
-        💯 ½ <a class="icon-btn" data-action="apply-full" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}" data-target-ref="${ref}">💯</a>
+        <a class="icon-btn" data-action="apply-full" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}" data-target-ref="${ref}">💯</a>
         <a class="icon-btn" data-action="apply-half" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}" data-target-ref="${ref}">½</a>
         ${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}
       `;
 
-    // Save line
-    const saveLine = t.save
+    // Save line - only show if save checkboxes were checked in dialog
+    const saveLine = state.hasSave
       ? `
         <div class="save-line">
-          <span>${(t.save.ability?.toUpperCase?.() || t.save.type || l("SW5EHELPER.Save"))} | DC: ${t.save.dc ?? "—"}</span>
+          <span>${(t.save?.ability?.toUpperCase?.() || t.save?.type || l("SW5EHELPER.Save"))} | DC: 
+            <span class="save-dc" ${t.save?.formula ? `title="${t.save.formula}"` : ""}>${t.save?.dc ?? "—"}</span>
+          </span>
           ${
-            t.save.roll
+            t.save?.roll
               ? `<span class="save-result">${t.save.roll.total} ${
                   t.save.roll.outcome === "success" ? "✅" :
                   t.save.roll.outcome === "fail"    ? "❌" :
@@ -91,7 +103,7 @@ export function renderAttackCard(state) {
               : `<a class="mini-btn" data-action="roll-save" data-target-ref="${ref}">${l("SW5EHELPER.RollSave")}</a>`
           }
         </div>`
-      : `<div class="save-line save-required">${l("SW5EHELPER.SaveRequired")}</div>`;
+      : "";
 
     // Damage line
     const appliedTag = t.damage?.applied
@@ -103,9 +115,9 @@ export function renderAttackCard(state) {
       : `
         <span class="icons">
           <a class="icon-btn" data-action="row-mod-damage" data-target-ref="${ref}" title="${l("SW5EHELPER.ModDamage")}" aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>
-          <a class="icon-btn" data-action="apply-full" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}">${l("SW5EHELPER.ApplyFull")}</a>
-          <a class="icon-btn" data-action="apply-half" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}">${l("SW5EHELPER.ApplyHalf")}</a>
-          <a class="icon-btn" data-action="apply-none" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}">${l("SW5EHELPER.ApplyNone")}</a>
+          <a class="icon-btn" data-action="apply-full" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}">💯</a>
+          <a class="icon-btn" data-action="apply-half" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}">½</a>
+          <a class="icon-btn" data-action="apply-none" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}">Ø</a>
         </span>
       `;
 
@@ -125,14 +137,27 @@ export function renderAttackCard(state) {
 
     const canControl = _userCanRow(t._actor);
     const nameAction = canControl ? "select-token" : "ping-token";
+    const alternatingClass = index % 2 === 0 ? " even" : " odd";
 
     return `
-      <details class="target-row${t.missing ? " missing" : ""}" data-target-ref="${ref}" ${state.ui?.expandedAll ? "open" : ""}>
+      <details class="target-row${t.missing ? " missing" : ""}${alternatingClass}" data-target-ref="${ref}" ${state.ui?.expandedAll ? "open" : ""}>
         <summary>
+          <span class="expand-arrow">▶</span>
           <img class="portrait" src="${t.img}" />
           <span class="tname" data-action="${nameAction}" data-target-ref="${ref}">${t.name}</span>
-          <span class="attack-total">${atk} [${status.toUpperCase()}]</span>
-          <span class="damage-summary">${dmgDisplay}</span>
+          ${saveOnly 
+            ? `<span class="save-summary">
+                ${t.save?.ability?.toUpperCase() || 'SAVE'} DC ${t.save?.dc ?? '—'}
+                ${t.save?.roll ? ` | ${t.save.roll.total} ${
+                  t.save.roll.outcome === "success" ? "✅" :
+                  t.save.roll.outcome === "fail" ? "❌" :
+                  t.save.roll.outcome === "critical" ? "💥" :
+                  t.save.roll.outcome === "fumble" ? "💩" : ""
+                }` : ''}
+               </span>`
+            : `<span class="attack-total">${atk} <span class="status-icon ${statusClass}" title="${statusText}">${statusIcon}</span></span>
+               <span class="damage-summary">${dmgDisplay}</span>`
+          }
           <span class="row-actions">
             ${summaryActions}
             ${t.missing ? `<span class="missing">[${l("SW5EHELPER.Missing")}]</span>` : ""}
@@ -151,20 +176,34 @@ export function renderAttackCard(state) {
     ? `<span class="info-icon" data-action="show-attack-formula" title="${l("SW5EHELPER.AttackFormulaTooltip")}">ⓘ</span>`
     : "";
 
+  // Header changes based on save-only mode
+  const weaponName = state.itemName || state.weaponName || "Unknown Weapon";
+  const headerTitle = saveOnly 
+    ? `${weaponName}`
+    : `${weaponName}`;
+
+  if (DEBUG) console.log("SW5E DEBUG: Header title info", { 
+    weaponName, 
+    itemName: state.itemName, 
+    weaponImg: state.weaponImg, 
+    headerTitle 
+  });
+
   const header = `
     <div class="weapon-banner">
       <img src="${state.weaponImg ?? ""}" alt="Weapon" class="weapon-icon" />
       <div class="weapon-title">
-        <span class="name">${state.itemName ?? ""} — ${l("SW5EHELPER.Attack").replace(l("SW5EHELPER.RollAttack"), "Attack")}${adv}</span>
+        <span class="name">${headerTitle}</span>
         ${attackInfoIcon}
       </div>
-      ${hdrActions}
     </div>
+    ${hdrActions}
   `;
 
   return `
     <div class="sw5e-helper-card" data-message-id="${state.messageId ?? ""}">
       ${header}
+      <hr class="target-separator" />
       ${rows}
     </div>
   `;

@@ -98,3 +98,25 @@
 .sw5e-helper-card .save-line.save-required { opacity:.85; font-style:italic; }
 .sw5e-helper-card .applied-tag { margin-left:.4rem; opacity:.9; }
 .sw5e-helper-card .missing { opacity:.6; }
+
+/* Target separator line */
+.sw5e-helper-card .target-separator { margin:.5rem 0; border:0; border-top:1px solid #ccc; }
+
+/* Alternating target row backgrounds */
+.sw5e-helper-card .target-row.even { background-color: rgba(255,255,255,0.05); }
+.sw5e-helper-card .target-row.odd { background-color: rgba(0,0,0,0.05); }
+
+/* Lines between target rows */
+.sw5e-helper-card .target-row + .target-row { border-top: 1px solid rgba(255,255,255,0.1); }
+
+/* Expand/collapse arrow */
+.sw5e-helper-card .expand-arrow { 
+  display: inline-block; 
+  transition: transform 0.2s ease; 
+  margin-right: 0.5rem; 
+  font-size: 0.8em; 
+  cursor: pointer; 
+}
+.sw5e-helper-card details[open] .expand-arrow { 
+  transform: rotate(90deg); 
+}
