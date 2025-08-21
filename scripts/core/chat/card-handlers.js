@@ -1,208 +1,275 @@
 // scripts/core/chat/card-handlers.js
-const MOD = "sw5e-helper";
-import { renderAttackCard } from "./card-renderer.js";
-import { quickDamageFromState } from "../engine/damage.js";
-import { resolveTokenRef, applyDamageToToken } from "../adapter/sw5e.js";
-import { openDamageDialog } from "../../ui/DamageDialog.js";
-import { rollDamageForTargets } from "../engine/damage.js";
+// Single delegated handler for condensed attack card
+// - Never creates new ChatMessages; always updates the same message
+// - All state is in message.flags["sw5e-helper"].state
+// - Works with renderAttackCard(state) to fully re-render the card
 
-function _getState(msg){ return foundry.utils.getProperty(msg, `flags.${MOD}.state`); }
-function _setState(msg,state){ return msg.update({ flags:{ [MOD]:{ state }}, content: renderAttackCard(state) }); }
-function _appendRolls(msg, newRolls){
-  const rolls = Array.isArray(msg.rolls) ? msg.rolls.slice() : [];
-  for (const r of newRolls) if (r) rolls.push(r);
-  return msg.update({ rolls });
-}
-function _isOwner(actor){ return !!actor?.isOwner; }
-function _userCanRow(actor){ return game.user.isGM || _isOwner(actor); }
-function _actorFromState(state){ return game.actors.get(state.actorId); }
-function _itemFromState(state){ return _actorFromState(state)?.items?.get(state.itemId); }
-function _refOf(t){ return `${t.sceneId}:${t.tokenId}`; }
+import { renderAttackCard } from "./card-renderer.js";
+import { rollDamageForTargets } from "../../core/engine/damage.js";
+
+/* ----------------------------- bootstrap ----------------------------- */
 
 Hooks.on("renderChatMessage", (message, html) => {
-  const state = _getState(message);
-  if (!state) return;
   const root = html[0]?.querySelector?.(".sw5e-helper-card");
   if (!root) return;
-
-  root.addEventListener("click", async (ev) => {
-    const el = ev.target.closest?.("[data-action]");
-    if (!el) return;
-    const action = el.dataset.action;
-
-    // Expand/Collapse All
-    if (action === "expand-all" || action === "collapse-all") {
-      const open = action === "expand-all";
-      root.querySelectorAll("details.target-row").forEach(d => d.open = open);
-      return;
-    }
-
-    // Ping + Select
-    if (action === "ping-select") {
-      const ref = el.dataset.targetRef;
-      const [sceneId, tokenId] = (ref || "").split(":");
-      const scene = game.scenes.get(sceneId);
-      const token = scene?.tokens?.get(tokenId);
-      const actor = token?.actor;
-      if (token?.object) {
-        canvas.ping(token.object.center, { scene });
-        if (game.user.isGM || _isOwner(actor)) token.object.control({ releaseOthers:true });
-      }
-      return;
-    }
-
-    // === SAVES (per-target + GM-all) remain as in previous step ===
-    if (action === "roll-save" || action === "gm-roll-all-saves") {
-      // Keep your existing save-handling code here (unchanged) …
-      return;
-    }
-
-    // === QUICK DAMAGE (card header) ===
-    if (action === "card-quick-damage") {
-      const actor = _actorFromState(state);
-      const item  = _itemFromState(state);
-      if (!(game.user.isGM || state.authorId === game.user.id)) return ui.notifications.warn("SW5E Helper: Only card owner or GM.");
-      if (!actor || !item) return ui.notifications.warn("SW5E Helper: Item/actor not found.");
-
-      // Compute quick totals
-      const { perTargetTotals, rolls } = await quickDamageFromState({ actor, item, state });
-
-      // Write totals into targets (don’t overwrite applied rows)
-      for (const t of (state.targets ?? [])) {
-        const ref = _refOf(t);
-        if (t.damage?.applied) continue;
-        const total = perTargetTotals.get(ref);
-        if (total != null) {
-          t.damage = { ...(t.damage ?? {}), total, applied: null };
-        }
-      }
-      if (rolls.length) await _appendRolls(message, rolls);
-      await _setState(message, state);
-      return;
-    }
-
-    // === APPLY (per-target) ===
-    if (action === "apply-full" || action === "apply-half" || action === "apply-none") {
-      const ref = el.dataset.targetRef;
-      const { actor } = resolveTokenRef(ref);
-      if (!actor) return ui.notifications.warn("SW5E Helper: Target not found.");
-      if (!_userCanRow(actor)) return ui.notifications.warn("SW5E Helper: You lack permission for that target.");
-
-      const idx = (state.targets || []).findIndex(t => _refOf(t) === ref);
-      if (idx < 0) return;
-
-      const row = state.targets[idx];
-      const total = Number(row?.damage?.total ?? 0) || 0;
-      let appliedVal = 0;
-      let mode = "none";
-
-      if (action === "apply-full")  { mode = "full"; appliedVal = await applyDamageToToken(ref, total, { half:false }); }
-      if (action === "apply-half")  { mode = "half"; appliedVal = await applyDamageToToken(ref, total, { half:true  }); }
-      if (action === "apply-none")  { mode = "none"; appliedVal = 0; } // no HP change
-
-      row.damage = { ...(row.damage ?? {}), applied: { mode, value: appliedVal, by: game.user.id, at: Date.now() } };
-      await _setState(message, state);
-      return;
-    }
-
-    // === GM: Apply All (Full) ===
-    if (action === "gm-apply-all-full") {
-      if (!game.user.isGM) return ui.notifications.warn("SW5E Helper: GM only.");
-      for (const t of (state.targets ?? [])) {
-        if (!t?.damage?.total || t?.damage?.applied) continue;
-        const ref = _refOf(t);
-        const appliedVal = await applyDamageToToken(ref, Number(t.damage.total) || 0, { half:false });
-        t.damage.applied = { mode: "full", value: appliedVal, by: game.user.id, at: Date.now() };
-      }
-      await _setState(message, state);
-      return;
-    }
-
-    
-  // Header 🎲 (card-mod-damage)
-  if (action === "card-mod-damage") {
-    if (!(game.user.isGM || state.authorId === game.user.id)) return ui.notifications.warn("SW5E Helper: Only card owner or GM.");
-    const actor = game.actors.get(state.actorId);
-    const item  = actor?.items?.get(state.itemId);
-    if (!actor || !item) return;
-
-    // Seed from card options; weapon locked in dialog by passing the item as the only weapon
-    const cfg = await openDamageDialog({
-      actor,
-      item,
-      weapons: [{ id: item.id, name: item.name }], // existing DamageDialog expects weapons list
-      seed: {
-        ability: state.options?.ability || "",
-        offhand: !!state.options?.offhand,
-        smart: !!state.options?.smart,
-        smartAbility: Number(state.options?.smartAbility ?? 0) || 0,
-        separate: !!state.options?.separate,
-        crit: false
-      }
-    });
-    if (!cfg) return; // cancelled
-
-    const refs = (state.targets ?? [])
-      .filter(t => t.attack?.status && t.attack.status !== "miss" && t.attack.status !== "fumble")
-      .map(t => `${t.sceneId}:${t.tokenId}`);
-
-    const critMap = {};
-    for (const t of (state.targets ?? [])) {
-      if (!t.attack) continue;
-      critMap[`${t.sceneId}:${t.tokenId}`] = (t.attack.status === "crit");
-    }
-
-    const { perTargetTotals, rolls } = await rollDamageForTargets({
-      actor, item, dmgState: cfg, targetRefs: refs, critMap
-    });
-
-    for (const t of (state.targets ?? [])) {
-      const ref = `${t.sceneId}:${t.tokenId}`;
-      const total = perTargetTotals.get(ref);
-      if (total != null && !t.damage?.applied) t.damage = { ...(t.damage ?? {}), total, applied: null };
-    }
-    if (rolls?.length) await _appendRolls(message, rolls);
-    await _setState(message, state);
-    return;
-  }
-
-  // Row 🎲 (row-mod-damage)
-  if (action === "row-mod-damage") {
-    const ref = el.dataset.targetRef;
-    const { actor } = resolveTokenRef(ref);
-    if (!actor) return ui.notifications.warn("SW5E Helper: Target not found.");
-    if (!(game.user.isGM || actor.isOwner)) return ui.notifications.warn("SW5E Helper: You lack permission for that target.");
-
-    const sActor = game.actors.get(state.actorId);
-    const item   = sActor?.items?.get(state.itemId);
-    const row    = (state.targets || []).find(t => `${t.sceneId}:${t.tokenId}` === ref);
-    const isCrit = row?.attack?.status === "crit";
-
-    const cfg = await openDamageDialog({
-      actor: sActor,
-      item: item,
-      weapons: [{ id: item.id, name: item.name }],
-      seed: {
-        ability: state.options?.ability || "",
-        offhand: !!state.options?.offhand,
-        smart: !!state.options?.smart,
-        smartAbility: Number(state.options?.smartAbility ?? 0) || 0,
-        separate: true,
-        crit: !!isCrit
-      }
-    });
-    if (!cfg) return;
-
-    const { perTargetTotals, rolls } = await rollDamageForTargets({
-      actor: sActor, item, dmgState: cfg, targetRefs: [ref], critMap: { [ref]: !!cfg.crit }
-    });
-
-    const total = perTargetTotals.get(ref);
-    if (total != null && !row?.damage?.applied) row.damage = { ...(row.damage ?? {}), total, applied: null };
-    if (rolls?.length) await _appendRolls(message, rolls);
-    await _setState(message, state);
-    return;
-  }
-
-  }, { capture: true });
+  // attach once per message DOM
+  root.addEventListener("click", (ev) => _onCardClick(ev, message));
 });
+
+/* ------------------------------ handlers ----------------------------- */
+
+async function _onCardClick(ev, message) {
+  const el = ev.target.closest("[data-action]");
+  if (!el) return;
+  ev.preventDefault();
+
+  const action = el.dataset.action;
+  const root   = el.closest(".sw5e-helper-card");
+  const msgId  = root?.dataset?.messageId || message.id;
+  if (!msgId || message.id !== msgId) ; // continue; message is correct
+
+  const state = _getState(message);
+  if (!state) return;
+
+  // Determine target ref if any
+  const ref   = el.dataset.targetRef || el.closest(".target-row")?.dataset?.targetRef || null;
+
+  /* ------------------------------- routers ------------------------------- */
+
+  // Expand/Collapse all
+  if (action === "toggle-all") {
+    state.ui = state.ui || {};
+    state.ui.expandedAll = !state.ui.expandedAll;
+    return _update(message, state);
+  }
+
+  // Token helpers
+  if (action === "ping-token")  return _pingToken(ref);
+  if (action === "select-token") return _selectToken(ref);
+
+  // Info popovers (tooltips)
+  if (action === "show-attack-formula") {
+    if (state.attack?.info) ui.notifications.info(state.attack.info);
+    return;
+  }
+  if (action === "show-damage-formula") {
+    const t = _rowByRef(state, ref);
+    if (t?.damage?.info) ui.notifications.info(t.damage.info);
+    return;
+  }
+
+  // Per-row save
+  if (action === "roll-save") {
+    const t = _rowByRef(state, ref);
+    if (!t?.save || t.missing) return;
+    const { roll, rollObj } = await _rollSaveForTarget(t);
+    t.save.roll = roll;
+    await _appendRolls(message, rollObj ? [rollObj] : []);
+    return _update(message, state);
+  }
+
+  // GM: roll all saves (remaining only)
+  if (action === "gm-roll-all-saves") {
+    if (!game.user.isGM) return;
+    const rows = (state.targets || []).filter(t => t.save && !t.save.roll && !t.missing);
+    if (!rows.length) return;
+    const allRolls = [];
+    for (const t of rows) {
+      const { roll, rollObj } = await _rollSaveForTarget(t);
+      t.save.roll = roll;
+      if (rollObj) allRolls.push(rollObj);
+    }
+    if (allRolls.length) await _appendRolls(message, allRolls);
+    return _update(message, state);
+  }
+
+  // Header quick/mod damage → shared path honoring save-only and hit/crit eligibility
+  if (action === "card-quick-damage" || action === "card-mod-damage" || action === "gm-roll-damage") {
+    const eligible = _eligibleDamageRows(state);
+    if (!eligible.length) return;
+    await _rollAndPersistDamage(message, state, eligible, { separate: !!state?.options?.separate });
+    return _update(message, state);
+  }
+
+  // Per-row mod damage
+  if (action === "row-mod-damage") {
+    const t = _rowByRef(state, ref);
+    if (!t || t.missing) return;
+    await _rollAndPersistDamage(message, state, [t], { separate: true });
+    return _update(message, state);
+  }
+
+  // Apply damage modes
+  if (action === "apply-full" || action === "apply-half" || action === "apply-none") {
+    const t = _rowByRef(state, ref);
+    if (!t?.damage || t.missing) return;
+    const mode = action === "apply-full" ? "full" : action === "apply-half" ? "half" : "none";
+    const amt  = Number(t.damage.total ?? 0);
+    const applied = _applyAmount(amt, mode);
+    // Placeholder for future resistances/reactions pipeline:
+    // Hooks.call("sw5eHelper.preApplyDamage", { state, target:t, amount:amt, mode, types:t.damage?.types });
+    t.damage.applied = mode;
+    t.damage.appliedAmount = applied;
+    // If you want to call system apply: try token.actor.applyDamage(applied)
+    // Hooks.callAll("sw5eHelper.postApplyDamage", { state, target:t, appliedAmount:applied, mode, types:t.damage?.types });
+    return _update(message, state);
+  }
+
+  // GM: apply all full for all rows with rolled damage and not yet applied
+  if (action === "gm-apply-all-full") {
+    if (!game.user.isGM) return;
+    const rows = (state.targets || []).filter(t => t.damage && t.damage.total != null && !t.damage.applied && !t.missing);
+    for (const t of rows) {
+      const applied = _applyAmount(Number(t.damage.total ?? 0), "full");
+      t.damage.applied = "full";
+      t.damage.appliedAmount = applied;
+    }
+    return _update(message, state);
+  }
+}
+
+/* ------------------------------ internals ------------------------------ */
+
+function _getState(message) {
+  return message?.flags?.["sw5e-helper"]?.state ?? null;
+}
+
+async function _update(message, state, rolls = []) {
+  const content = renderAttackCard(state);
+  const payload = {
+    content,
+    flags: { "sw5e-helper": { state } }
+  };
+  if (rolls.length) payload.rolls = [...(message.rolls || []), ...rolls];
+  return message.update(payload);
+}
+
+async function _appendRolls(message, rolls) {
+  if (!rolls?.length) return;
+  return message.update({ rolls: [...(message.rolls || []), ...rolls] });
+}
+
+function _rowByRef(state, ref) {
+  if (!ref) return null;
+  return (state.targets || []).find(t => `${t.sceneId}:${t.tokenId}` === ref) || null;
+}
+
+function _refOf(t) {
+  return `${t.sceneId}:${t.tokenId}`;
+}
+
+function _actorFromState(state) {
+  try {
+    const id = state.actorId;
+    return game.actors?.get(id) || null;
+  } catch { return null; }
+}
+
+function _itemFromState(state) {
+  const a = _actorFromState(state);
+  if (!a) return null;
+  try {
+    return a.items.get(state.itemId) || null;
+  } catch { return null; }
+}
+
+function _applyAmount(amount, mode) {
+  if (mode === "none") return 0;
+  if (mode === "half") return Math.floor(Number(amount || 0) / 2);
+  return Number(amount || 0);
+}
+
+function _eligibleDamageRows(state) {
+  const saveOnly = !!state?.options?.saveOnly;
+  const targets = state.targets || [];
+  return targets.filter(t => {
+    if (t.missing) return false;
+    if (saveOnly) return true;
+    const s = String(t?.summary?.status || "");
+    return s === "hit" || s === "crit";
+  });
+}
+
+/* -------------------------- rolling primitives ------------------------- */
+
+async function _rollSaveForTarget(t) {
+  // Prefer explicit formula on row if present
+  const formula = t.save?.formula || `1d20+${Number(t.save?.mod || 0)}`;
+  const r = await (new Roll(formula)).evaluate({ async: true });
+  try { await game.dice3d?.showForRoll?.(r, game.user, true); } catch (_) {}
+  const total = Number(r.total ?? 0);
+  const dc = Number(t.save?.dc ?? Infinity);
+  let outcome = total >= dc ? "success" : "fail";
+  // Optional nat 20 / nat 1 check on first term if desired
+  const d20 = _firstD20(r);
+  if (d20 === 20) outcome = "critical";
+  if (d20 === 1)  outcome = "fumble";
+  return {
+    roll: { total, formula: r.formula, outcome },
+    rollObj: r
+  };
+}
+
+function _firstD20(roll) {
+  try {
+    const term = roll.terms?.find?.(t => t.faces === 20 && Array.isArray(t.results));
+    return term?.results?.[0]?.result ?? null;
+  } catch { return null; }
+}
+
+async function _rollAndPersistDamage(message, state, rows, { separate }) {
+  const actor = _actorFromState(state);
+  const item  = _itemFromState(state);
+  if (!actor || !item) return;
+
+  // Build targetRefs and crit map from row status; no GM crit toggle
+  const targetRefs = rows.map(_refOf);
+  const critMap = {};
+  for (const t of rows) critMap[_refOf(t)] = (String(t?.summary?.status) === "crit");
+
+  // Use engine mixed-crit shared roll behavior
+  const { perTargetTotals, perTargetTypes, rolls, info } = await rollDamageForTargets({
+    actor, item,
+    dmgState: state?.dmgState || state?.options || {},
+    targetRefs, critMap,
+    separate: !!separate
+  });
+
+  // Persist totals and type maps on each row
+  for (const t of rows) {
+    const ref = _refOf(t);
+    const total = perTargetTotals.get(ref);
+    if (total == null) continue;
+    t.damage = t.damage || {};
+    t.damage.total = total;
+    t.damage.types = perTargetTypes.get(ref) || { kinetic: total }; // placeholder per-type map
+    t.damage.info  = info || t.damage.info || "";
+    // buttons disappear on render when total exists
+  }
+
+  if (rolls?.length) await _appendRolls(message, rolls);
+}
+
+/* ----------------------------- token helpers --------------------------- */
+
+function _resolveSceneAndToken(ref) {
+  if (!ref) return {};
+  const [sceneId, tokenId] = ref.split(":");
+  const scene = game.scenes?.get(sceneId) || canvas?.scene;
+  const token = scene?.tokens?.get(tokenId);
+  return { scene, token };
+}
+
+function _pingToken(ref) {
+  const { scene, token } = _resolveSceneAndToken(ref);
+  if (token?.object && canvas?.ping) canvas.ping(token.object.center, { scene });
+}
+
+function _selectToken(ref) {
+  const { scene, token } = _resolveSceneAndToken(ref);
+  if (token?.object) token.object.control({ releaseOthers: true });
+}
+
+/* -------------------------------- exports ------------------------------ */
+
+export { }

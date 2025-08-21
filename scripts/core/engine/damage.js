@@ -367,6 +367,9 @@ export async function rollDamage({ actor, weaponId, state }) {
 
     const perTargetTotals = new Map();
     const rolls = [];
+    
+    let info = "";
+    const perTargetTypes = new Map();
 
     if (!targetRefs.length) {
       // Manual, no targets selected: single roll using global crit toggle
@@ -383,18 +386,56 @@ export async function rollDamage({ actor, weaponId, state }) {
         perTargetTotals.set(ref, r.total ?? 0);
       }
     } else {
-      // shared: crit group + hit group
-      const critRefs = targetRefs.filter(ref => !!critMap[ref]);
-      const hitRefs  = targetRefs.filter(ref => !critMap[ref]);
-      if (critRefs.length) {
-        const r = await doRoll(true); rolls.push(r);
-        for (const ref of critRefs) perTargetTotals.set(ref, r.total ?? 0);
-      }
-      if (hitRefs.length) {
-        const r = await doRoll(false); rolls.push(r);
-        for (const ref of hitRefs) perTargetTotals.set(ref, r.total ?? 0);
-      }
+        // shared roll:
+        // - If all hits are crits or all are non-crits → one roll applied to all
+        // - If mixed crit + non-crit → roll BASE once (non-crit) + roll CRIT-EXTRA once, apply extra only to crit rows
+        const critRefs = targetRefs.filter(ref => !!critMap[ref]);
+        const hitRefs  = targetRefs.filter(ref => !critMap[ref]);
+
+        if (!critRefs.length || !hitRefs.length) {
+          // Uniform case: one roll applied to all eligible
+          const isCrit = !!critRefs.length;
+          const r = await doRoll(isCrit); rolls.push(r);
+          for (const ref of targetRefs) perTargetTotals.set(ref, r.total ?? 0);
+          // crude type map: attribute total to "kinetic" bucket for now (placeholder for future per-part eval)
+          for (const ref of targetRefs) perTargetTypes.set(ref, { kinetic: r.total ?? 0 });
+          info = `${makeFormula(isCrit)} = ${r.total ?? 0}`;
+        } else {
+          // Mixed case: base(non-crit) + crit extra(only duplicated dice + brutal)
+          // Build a crit-extra-only formula by duplicating only the dice-bearing pieces
+          const diceOnly = (s) => (s.match(/(?:^|[+(-])\\s*\\d+d\\d+(?:\\s*[+*-]\\s*\\d+d\\d+)*/gi)?.join(" + ") || "0");
+          const baseFormula = makeFormula(false);
+          const baseRoll = await (new Roll(baseFormula)).evaluate({ async: true });
+          try { await game.dice3d?.showForRoll?.(baseRoll, game.user, true); } catch (_) {}
+          rolls.push(baseRoll);
+
+          // crit-extra: duplicate only dice from base + eligible extras + add brutal dice
+          let critExtra = diceOnly(base);
+          for (const r of extras) {
+            if (!r?.formula || !r.inCrit) continue;
+            const d = diceOnly(r.formula);
+            if (d && d !== "0") critExtra = critExtra ? `${critExtra} + ${d}` : d;
+          }
+          if (brutalVal > 0 && faces) critExtra = critExtra ? `${critExtra} + ${brutalVal}d${faces}` : `${brutalVal}d${faces}`;
+
+          const extraRoll = await (new Roll(critExtra || "0")).evaluate({ async: true });
+          try { await game.dice3d?.showForRoll?.(extraRoll, game.user, true); } catch (_) {}
+          rolls.push(extraRoll);
+
+          // Apply totals
+          for (const ref of hitRefs) {
+            const total = (baseRoll.total ?? 0);
+            perTargetTotals.set(ref, total);
+            perTargetTypes.set(ref, { kinetic: total }); // placeholder type map
+          }
+          for (const ref of critRefs) {
+            const total = (baseRoll.total ?? 0) + (extraRoll.total ?? 0);
+            perTargetTotals.set(ref, total);
+            perTargetTypes.set(ref, { kinetic: total }); // placeholder type map
+          }
+          info = `Base: ${baseFormula} = ${baseRoll.total ?? 0}  +  Crit Extra: ${critExtra || 0} = ${extraRoll.total ?? 0}`;
+        }
     }
 
-    return { perTargetTotals, rolls };
+    return { perTargetTotals, perTargetTypes, rolls, info: info || `${base} + ability(${abilityMod})` };
   }

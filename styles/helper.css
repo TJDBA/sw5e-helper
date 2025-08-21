@@ -76,3 +76,24 @@
 .sw5e-helper-card .applied-pill{margin-left:.4rem}
 .sw5e-helper-card .icons{display:inline-flex;gap:.25rem}
 .sw5e-helper-card .icon-btn{cursor:pointer;text-decoration:none}
+
+.sw5e-helper-card .weapon-banner { display:flex; align-items:center; gap:.5rem; }
+.sw5e-helper-card .weapon-banner .weapon-icon { width:28px; height:28px; border-radius:4px; }
+.sw5e-helper-card .weapon-title { display:flex; align-items:center; gap:.4rem; }
+.sw5e-helper-card .card-damage-controls { display:flex; align-items:center; gap:.5rem; margin:.35rem 0; }
+.sw5e-helper-card .gm-toolbar { display:flex; align-items:center; gap:.35rem; margin-left:.35rem; }
+.sw5e-helper-card .target-row summary { display:flex; align-items:center; gap:.5rem; }
+.sw5e-helper-card .portrait { width:22px; height:22px; border-radius:3px; }
+.sw5e-helper-card .tname { flex:1 1 auto; }
+.sw5e-helper-card .attack-total { min-width:56px; text-align:right; }
+.sw5e-helper-card .row-actions { display:flex; align-items:center; gap:.35rem; margin-left:.35rem; }
+.sw5e-helper-card .icon-btn, .sw5e-helper-card .mini-btn { line-height:1; }
+.sw5e-helper-card .status-badge { padding:0 .4rem; border-radius:8px; font-size:11px; }
+.sw5e-helper-card .status-hit { background:#23384a; color:#dfefff; }
+.sw5e-helper-card .status-miss { background:#4a2f23; color:#ffeedd; }
+.sw5e-helper-card .status-crit { background:#244a2f; color:#eaffea; }
+.sw5e-helper-card .status-fumble { background:#4a2424; color:#ffeeee; }
+.sw5e-helper-card .status-saveonly { background:#333; color:#eee; }
+.sw5e-helper-card .save-line.save-required { opacity:.85; font-style:italic; }
+.sw5e-helper-card .applied-tag { margin-left:.4rem; opacity:.9; }
+.sw5e-helper-card .missing { opacity:.6; }

@@ -1,117 +1,175 @@
 // scripts/core/chat/card-renderer.js
-const MOD = "sw5e-helper";
+// Condensed single-message attack card renderer
+// - Uses <details><summary> per target
+// - No DOM patching; always re-render from state
+// - All state lives in message.flags["sw5e-helper"].state
 
-/**
- * Render the attack card HTML from state.
- * Only visuals + data-action hooks here (no logic).
- * @param {object} state  message.flags[MOD].state
- * @param {object} ctx    { isGM:boolean, isOwner:boolean, localize:fn }
- */
-export function renderAttackCard(state, ctx = {}) {
-  const l = (k) => (game.i18n?.localize?.(k) ?? k);
-  const isGM = ctx.isGM ?? game.user.isGM;
-  const youAreAuthor = state.authorId === game.user.id;
+export function renderAttackCard(state) {
+  const l = (k) => game.i18n.localize(k);
+  const isGM = game.user?.isGM === true;
+  const adv = (state?.attack?.advState && state.attack.advState !== "NONE") ? ` (${state.attack.advState})` : "";
+  const saveOnly = !!state?.options?.saveOnly;
 
-  const advBadge = state.options?.adv && state.options.adv !== "normal"
-    ? ` (${state.options.adv.toUpperCase()})` : "";
+  // Visibility logic for GM toolbar
+  const gmHideRollAllDamage = (state.targets || []).every(t => {
+    const eligible = saveOnly || ["hit", "crit"].includes(String(t?.summary?.status || ""));
+    if (!eligible || t.missing) return true;
+    return t?.damage?.total != null;
+  });
+  const gmHideRollAllSaves = (state.targets || []).every(t => {
+    if (!t?.save || t.missing) return true;
+    return !!t.save?.roll; // save rolled → hide GM roll-all saves
+  });
 
-  // Header actions (right side)
-  const hdrActions = (youAreAuthor || isGM) ? `
-    <span class="icons hdr-icons">
+  // Header controls (icon-first) + GM toolbar + Expand/Collapse all
+  const hdrActions = `
+    <div class="card-damage-controls">
       <a class="icon-btn" data-action="card-quick-damage" title="${l("SW5EHELPER.QuickDamage")}" aria-label="${l("SW5EHELPER.QuickDamage")}">⚡</a>
       <a class="icon-btn" data-action="card-mod-damage"   title="${l("SW5EHELPER.ModDamage")}"   aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>
-    </span>` : "";
+      ${isGM ? `
+        <div class="gm-toolbar">
+          ${gmHideRollAllDamage ? "" : `<a class="mini-btn" data-action="gm-roll-damage">${l("SW5EHELPER.RollAllDamage")}</a>`}
+          ${gmHideRollAllSaves  ? "" : `<a class="mini-btn" data-action="gm-roll-all-saves">${l("SW5EHELPER.RollAllSaves")}</a>`}
+          <a class="mini-btn" data-action="gm-apply-all-full">${l("SW5EHELPER.ApplyAllFull")}</a>
+        </div>` : ""
+      }
+      <a class="mini-btn" data-action="toggle-all">${state.ui?.expandedAll ? l("SW5EHELPER.CollapseAll") : l("SW5EHELPER.ExpandAll")}</a>
+    </div>
+  `;
 
-  const expandToggles = `
-    <div class="row-toggles">
-      <a data-action="expand-all">${l("SW5EHELPER.ExpandAll")}</a> |
-      <a data-action="collapse-all">${l("SW5EHELPER.CollapseAll")}</a>
-    </div>`;
+  // Build all target rows
+  const rows = (state.targets || []).map(t => {
+    const ref = _refOf(t);
+    const kept = Number.isFinite(t?.summary?.keptDie) ? ` (${t.summary.keptDie})` : "";
+    const atk = Number.isFinite(t?.summary?.attackTotal) ? `${t.summary.attackTotal}${kept}` : "—";
+    const status = String(t?.summary?.status || "pending");
+    const statusClass = ({
+      hit: "status-hit",
+      miss: "status-miss",
+      crit: "status-crit",
+      fumble: "status-fumble",
+      saveonly: "status-saveonly",
+      pending: "status-pending"
+    })[status] || "status-pending";
 
-  const rows = (state.targets ?? []).map(t => {
-    const saveOnly = !!state.options?.saveOnly;
+    // Summary actions on the right (apply buttons disappear once applied)
+    const summaryActions = (!t.damage || t.damage?.applied)
+      ? `${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}`
+      : `
+        <a class="icon-btn" data-action="apply-full" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}" data-target-ref="${ref}">✔️</a>
+        <a class="icon-btn" data-action="apply-half" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}" data-target-ref="${ref}">½</a>
+        <a class="icon-btn" data-action="apply-none" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}" data-target-ref="${ref}">Ø</a>
+        ${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}
+      `;
 
-    const status = saveOnly
-      ? `<span class="badge save-required">${l("SW5EHELPER.SaveRequired")}</span>`
-      : (t.attack ? `<span class="attack-roll">${t.attack.kept ?? ""} (${t.attack.total ?? ""})</span>
-         <span class="badge status-${t.attack.status}">${t.attack.status?.toUpperCase?.() ?? ""}</span>` : "");
+    // Save line
+    const saveLine = t.save
+      ? `
+        <div class="save-line">
+          <span>${(t.save.ability?.toUpperCase?.() || t.save.type || l("SW5EHELPER.Save"))} | DC: ${t.save.dc ?? "—"}</span>
+          ${
+            t.save.roll
+              ? `<span class="save-result">${t.save.roll.total} ${
+                  t.save.roll.outcome === "success" ? "✅" :
+                  t.save.roll.outcome === "fail"    ? "❌" :
+                  t.save.roll.outcome === "critical"? "💥" :
+                  t.save.roll.outcome === "fumble"  ? "💩" : ""
+                }</span>`
+              : `<a class="mini-btn" data-action="roll-save" data-target-ref="${ref}">${l("SW5EHELPER.RollSave")}</a>`
+          }
+        </div>`
+      : `<div class="save-line save-required">${l("SW5EHELPER.SaveRequired")}</div>`;
 
-    // Right side of summary: damage or dash, then apply icons or ✓
-    const dmgSummary = (t.damage?.total != null)
-      ? `💥 ${t.damage.total}`
-      : (saveOnly ? "—" : "—");
+    // Damage line
+    const appliedTag = t.damage?.applied
+      ? `<span class="applied-tag">[${String(t.damage.applied).toUpperCase()}]</span>`
+      : "";
 
-    const appliedSummary = t.damage?.applied
-      ? ` <span class="applied-check">✓</span>`
-      : ((youAreAuthor || isGM || t.isOwner) ? ` 
-          <span class="icons sum-icons">
-            <a class="icon-btn" data-action="apply-full" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}">💯</a>
-            <a class="icon-btn" data-action="apply-half" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}">½</a>
-            <a class="icon-btn" data-action="apply-none" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}">∅</a>
-          </span>` : "");
+    const dmgControls = t.damage?.applied
+      ? ""
+      : `
+        <span class="icons">
+          <a class="icon-btn" data-action="row-mod-damage" data-target-ref="${ref}" title="${l("SW5EHELPER.ModDamage")}" aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>
+          <a class="icon-btn" data-action="apply-full" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}">${l("SW5EHELPER.ApplyFull")}</a>
+          <a class="icon-btn" data-action="apply-half" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}">${l("SW5EHELPER.ApplyHalf")}</a>
+          <a class="icon-btn" data-action="apply-none" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}">${l("SW5EHELPER.ApplyNone")}</a>
+        </span>
+      `;
 
-    const saveBlock = (t.save || state.options?.save) ? `
-      <div class="save-block">
-        ${(t.save?.abi ?? state.options?.save?.ability ?? "").toString().toUpperCase()}
-        | ${l("SW5EHELPER.SaveDC")}: ${(t.save?.dc ?? state.options?.save?.dc ?? state.options?.save?.dcFormula ?? "—")}
-        ${t.save?.total != null
-          ? `| ${t.save.total} (${t.save.success ? l("SW5EHELPER.Success") : l("SW5EHELPER.Fail")})`
-          : `| <a class="mini-btn" data-action="roll-save" data-target-ref="${t.sceneId}:${t.tokenId}">${l("SW5EHELPER.RollSave")}</a>`
-        }
-      </div>` : "";
+    const dmgInfo = t.damage?.info
+      ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>`
+      : "";
 
-    const damageBlock = `
-      <div class="damage-block">
-        <span class="info-icon" data-action="show-damage-formula" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>
-        <div class="damage-line">
-          <span>${l("SW5EHELPER.Damage")}:</span>
-          <span class="dmg-val">${t.damage?.total ?? "—"}</span>
-          ${!t.damage?.applied ? `
-            <span class="icons">
-              <a class="icon-btn" data-action="row-mod-damage" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ModDamage")}" aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>
-              <a class="icon-btn" data-action="apply-full" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}">💯</a>
-              <a class="icon-btn" data-action="apply-half" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}">½</a>
-              <a class="icon-btn" data-action="apply-none" data-target-ref="${t.sceneId}:${t.tokenId}" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}">∅</a>
-            </span>` : `
-            <span class="applied-pill">${l("SW5EHELPER.Applied")}: ${t.damage.applied.value} (${t.damage.applied.mode}) ✓</span>
-          `}
-        </div>
-      </div>`;
+    const damageLine = `
+      <div class="damage-line">
+        <span>💥 ${l("SW5EHELPER.Damage")}:</span>
+        <span class="dmg-val">${t.damage?.total ?? "—"}</span>
+        ${appliedTag}
+        ${dmgControls}
+        ${dmgInfo}
+      </div>
+    `;
+
+    const canControl = _userCanRow(t._actor);
+    const nameAction = canControl ? "select-token" : "ping-token";
 
     return `
-    <details class="target-row" data-target="${t.sceneId}:${t.tokenId}" ${t.removed ? 'data-removed="true"' : ""}>
-      <summary>
-        <img src="${t.img ?? ""}" class="portrait" data-action="ping-select" data-target-ref="${t.sceneId}:${t.tokenId}" />
-        <span class="name" data-action="ping-select" data-target-ref="${t.sceneId}:${t.tokenId}">${t.name ?? ""}</span>
-        ${status}
-        <span class="summary-right">${dmgSummary}${appliedSummary}</span>
-      </summary>
-      <div class="row-body">
-        ${saveBlock}
-        ${damageBlock}
-      </div>
-    </details>`;
+      <details class="target-row${t.missing ? " missing" : ""}" data-target-ref="${ref}" ${state.ui?.expandedAll ? "open" : ""}>
+        <summary>
+          <img class="portrait" src="${t.img}" />
+          <span class="tname" data-action="${nameAction}" data-target-ref="${ref}">${t.name}</span>
+          <span class="attack-total">${atk}</span>
+          <span class="status-badge ${statusClass}">${status.toUpperCase()}</span>
+          <span class="row-actions">
+            ${summaryActions}
+            ${t.missing ? `<span class="missing">[${l("SW5EHELPER.Missing")}]</span>` : ""}
+          </span>
+        </summary>
+        <div class="row-body">
+          ${saveLine}
+          ${damageLine}
+        </div>
+      </details>
+    `;
   }).join("");
 
-  // Optional GM toolbar (text, small; can iconize later)
-  const gmToolbar = isGM ? `
-    <div class="gm-toolbar">
-      <a class="mini-btn" data-action="gm-roll-all-saves">${l("SW5EHELPER.RollAllSaves")}</a>
-      <a class="mini-btn" data-action="gm-apply-all-full">${l("SW5EHELPER.ApplyAllFull")}</a>
-    </div>` : "";
+  // Header banner
+  const attackInfoIcon = state.attack?.info
+    ? `<span class="info-icon" data-action="show-attack-formula" title="${l("SW5EHELPER.AttackFormulaTooltip")}">ⓘ</span>`
+    : "";
 
-  return `
-  <div class="sw5e-helper-card" data-message-id="${state.messageId ?? ""}">
+  const header = `
     <div class="weapon-banner">
       <img src="${state.weaponImg ?? ""}" alt="Weapon" class="weapon-icon" />
       <div class="weapon-title">
-        <span class="name">${state.itemName ?? ""} — ${l("SW5EHELPER.RollAttack").replace(l("SW5EHELPER.RollAttack"), "Attack")}${advBadge}</span>
-        <span class="info-icon" data-action="show-attack-formula" title="${l("SW5EHELPER.AttackFormulaTooltip")}">ⓘ</span>
+        <span class="name">${state.itemName ?? ""} — ${l("SW5EHELPER.Attack").replace(l("SW5EHELPER.RollAttack"), "Attack")}${adv}</span>
+        ${attackInfoIcon}
       </div>
       ${hdrActions}
     </div>
-    ${gmToolbar}
-    ${expandToggles}
-    ${rows}
-  </div>`;
+  `;
+
+  return `
+    <div class="sw5e-helper-card" data-message-id="${state.messageId ?? ""}">
+      ${header}
+      ${rows}
+    </div>
+  `;
+}
+
+/* -------------------------- local helpers -------------------------- */
+
+function _refOf(t) {
+  // sceneId:tokenId as unique row reference
+  return `${t.sceneId}:${t.tokenId}`;
+}
+
+function _userCanRow(actorLike) {
+  try {
+    const a = actorLike ?? null;
+    if (!a) return false;
+    return game.user?.isGM || a?.isOwner === true || a?.ownership?.[game.userId] >= (CONST.DOCUMENT_PERMISSION_LEVELS?.OWNER ?? 3);
+  } catch {
+    return game.user?.isGM === true;
+  }
 }
