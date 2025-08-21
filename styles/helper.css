@@ -79,7 +79,8 @@
 
 .sw5e-helper-card .weapon-banner { display:flex; align-items:center; gap:.5rem; }
 .sw5e-helper-card .weapon-banner .weapon-icon { width:28px; height:28px; border-radius:4px; }
-.sw5e-helper-card .weapon-title { display:flex; align-items:center; gap:.4rem; }
+.sw5e-helper-card .weapon-title { display:flex; align-items:center; gap:.4rem; flex:1; min-width:0; }
+.sw5e-helper-card .weapon-title .name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sw5e-helper-card .card-damage-controls { display:flex; align-items:center; gap:.5rem; margin:.35rem 0; }
 .sw5e-helper-card .gm-toolbar { display:flex; align-items:center; gap:.35rem; margin-left:.35rem; }
 .sw5e-helper-card .target-row summary { display:flex; align-items:center; gap:.5rem; }

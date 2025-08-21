@@ -8,6 +8,7 @@ import { setLastUsed } from "./core/services/presets.js";
 import { renderAttackCard } from "./core/chat/card-renderer.js";
 
 const MOD = "sw5e-helper";
+const DEBUG = true; // Debug flag for console logging
 
 // helper: freeze current targets (token list) with safe fallbacks
 function _freezeTargets() {
@@ -22,7 +23,9 @@ function _freezeTargets() {
 
 // helper: create the message with flags + content
 async function _createAttackCardMessage({ actor, state, rolls = [] }) {
+  if (DEBUG) console.log("SW5E DEBUG: _createAttackCardMessage() called", { actor: actor.name, state, rolls });
   const content = renderAttackCard(state);
+  if (DEBUG) console.log("SW5E DEBUG: Rendered card content", content);
   const msg = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content,
@@ -32,12 +35,14 @@ async function _createAttackCardMessage({ actor, state, rolls = [] }) {
   // write back messageId to flags.state and persist
   state.messageId = msg.id;
   await msg.update({ flags: { [MOD]: { state } } });
+  if (DEBUG) console.log("SW5E DEBUG: Chat message created and updated", { messageId: msg.id });
   return msg;
 }
 
 export const API = {
   async openAttack(seed = {}) {
     try {
+      if (DEBUG) console.log("SW5E DEBUG: openAttack() started", { seed });
       const actor = seed.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user?.character;
       if (!actor) { ui.notifications.warn(game.i18n.localize("SW5EHELPER.NoActor")); return; }
 
@@ -52,11 +57,13 @@ export const API = {
       // Open dialog
       const sel = await openAttackDialog({ actor, weapons, seed });
       if (!sel) { console.debug("SW5E Helper (API) user cancelled Attack"); return; }
+      if (DEBUG) console.log("SW5E DEBUG: Dialog selection", sel);
       await setLastUsed(actor, "attack", sel);
 
       // Resolve item & freeze targets (independent of canvas selection after this point)
       const item = getWeaponById(actor, sel.weaponId);
       const frozenTargets = _freezeTargets();
+      if (DEBUG) console.log("SW5E DEBUG: Frozen targets", frozenTargets);
 
       // Roll attack unless Save-Only
       let attackResult = null;
@@ -64,6 +71,9 @@ export const API = {
       if (!sel.saveOnly) {
         attackResult = await rollAttack({ actor: normalizeActor(actor), weaponId: sel.weaponId, state: sel });
         rolls = attackResult?.rolls ?? [];
+        if (DEBUG) console.log("SW5E DEBUG: Attack result", attackResult);
+      } else {
+        if (DEBUG) console.log("SW5E DEBUG: Save-only mode, skipping attack roll");
       }
 
       // Map outcomes to frozen targets
@@ -71,7 +81,21 @@ export const API = {
         const row = { ...ft };
         if (attackResult?.targets?.length) {
           const out = attackResult.targets.find(r => r.tokenId === ft.tokenId);
-          if (out) row.attack = { kept: out.kept, total: out.total, status: out.status };
+          if (out) {
+            row.attack = { kept: out.kept, total: out.total, status: out.status };
+            row.summary = { 
+              keptDie: out.kept, 
+              attackTotal: out.total, 
+              status: out.status 
+            };
+            if (DEBUG) console.log(`SW5E DEBUG: Mapped attack result for ${ft.name}`, { out, summary: row.summary });
+          }
+        } else if (sel.saveOnly) {
+          // In save-only mode, set status to saveonly since no attack roll was made
+          row.summary = { 
+            status: "saveonly"
+          };
+          if (DEBUG) console.log(`SW5E DEBUG: Set saveonly status for ${ft.name}`, { summary: row.summary });
         }
         // Pre-seed save block if provided by dialog
         if (sel?.save) {
@@ -80,6 +104,8 @@ export const API = {
         }
         return row;
       });
+      
+      if (DEBUG) console.log("SW5E DEBUG: Final targets array", targets);
 
       // Build state for the card flags
       const state = {
@@ -106,7 +132,9 @@ export const API = {
       };
 
       // Create the card message (single, updateable)
+      if (DEBUG) console.log("SW5E DEBUG: Final state before card creation", state);
       await _createAttackCardMessage({ actor, state, rolls });
+      if (DEBUG) console.log("SW5E DEBUG: Attack card created");
       return state; // for chaining/tests if needed
     } catch (e) {
       console.error("SW5E Helper (API) openAttack error", e);

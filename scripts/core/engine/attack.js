@@ -2,6 +2,7 @@
 import { getWeaponById } from "../adapter/sw5e.js";
 
 const signed = n => `${n >= 0 ? "+" : ""}${n}`;
+const DEBUG = true;
 
 function deriveDefaultAbility(item) {
   const sys = item.system ?? {};
@@ -61,6 +62,8 @@ function judgeAgainstTarget(roll, total, targetToken, item) {
 }
 
 export async function rollAttack({ actor, weaponId, state }) {
+  if (DEBUG) console.log("SW5E DEBUG: Running rollAttack()", actor, state);
+
   const item = getWeaponById(actor.actor, weaponId);
   if (!item) return ui.notifications.warn("No weapon selected.");
 
@@ -109,23 +112,31 @@ export async function rollAttack({ actor, weaponId, state }) {
   const targets = Array.from(game.user?.targets ?? []);
 
   // DEBUG: dump everything to the console
-  console.debug("SW5E Helper (engine) attack debug:", {
+  if (DEBUG) console.log("SW5E Helper (engine) attack debug:", {
     state: structuredClone(state),
     abilityKey, abilityMod, profBonus, itemAtk,
     advTag, d20, formula,
     targets: targets.map(t => ({ id: t.id, name: t.name }))
   });
 
-  // Helper to roll once (DSN will animate from ChatMessage because we pass rolls)
+  // Helper to roll once (with DSN animation)
   const makeRoll = async () => {
     const r = new R(formula, data);
     if (typeof r.evaluate === "function") await r.evaluate({ async: true });
     else if (typeof r.roll === "function") await r.roll({ async: true });
+    
+    // Manually trigger DSN animation since we're not creating a chat message
+    try { 
+      await game.dice3d?.showForRoll?.(r, game.user, true); 
+    } catch (_) {
+      if (DEBUG) console.log("SW5E DEBUG: DSN animation failed or not available");
+    }
+    
     return r;
   };
 
-  // Build a single combined card
-  const lines = [];
+  // Build target results for the new card system
+  const targetResults = [];
   const rolls = [];
 
   if (state.separate && targets.length > 1) {
@@ -133,9 +144,15 @@ export async function rollAttack({ actor, weaponId, state }) {
       const r = await makeRoll();
       rolls.push(r);
       const o = judgeAgainstTarget(r, r.total, t, item);
-      lines.push(
-        `<li><a class="sw5e-helper-target" data-scene="${canvas.scene?.id}" data-token="${t.id}">${t.name}</a>: <b>${o.status}</b>${o.detail} — total ${r.total}</li>`
-      );
+      const nat = keptNatD20(r);
+      targetResults.push({
+        tokenId: t.id,
+        kept: nat,
+        total: r.total,
+        status: o.status === "Critical Hit" ? "crit" : 
+                o.status === "Hit" ? "hit" : 
+                o.status === "Critical Miss" ? "fumble" : "miss"
+      });
     }
   } else {
     const r = await makeRoll();
@@ -143,33 +160,25 @@ export async function rollAttack({ actor, weaponId, state }) {
     if (targets.length) {
       for (const t of targets) {
         const o = judgeAgainstTarget(r, r.total, t, item);
-        lines.push(
-          `<li><a class="sw5e-helper-target" data-scene="${canvas.scene?.id}" data-token="${t.id}">${t.name}</a>: <b>${o.status}</b>${o.detail} — total ${r.total}</li>`
-        );
+        const nat = keptNatD20(r);
+        targetResults.push({
+          tokenId: t.id,
+          kept: nat,
+          total: r.total,
+          status: o.status === "Critical Hit" ? "crit" : 
+                  o.status === "Hit" ? "hit" : 
+                  o.status === "Critical Miss" ? "fumble" : "miss"
+        });
       }
     }
   }
 
-  const header = `${item.name} — Attack${targets.length ? "" : " (no target)"} · ${state.adv.toUpperCase()}`;
-  const sub = `<small>${abilityKey.toUpperCase()} ${signed(abilityMod)} · ${item.system?.proficient ? "PROF" : "No PROF"} ${signed(profBonus)}</small>`;
-  const list = lines.length ? `<ul style="margin:.5em 1em;">${lines.join("")}</ul>` : "";
-  const formulaHtml = `<code>${formula}</code>`;
+  if (DEBUG) console.log("SW5E DEBUG: Attack results", { targetResults, rolls });
 
-  // GM-only inline debug so you can see exactly what was used
-  const gmDebug = game.user?.isGM
-    ? `<details style="margin-top:.4em;"><summary>Debug</summary>
-         <div style="font-family:monospace;font-size:11px;">
-           adv="${state.adv}", advTag="${advTag}", d20="${d20}"<br/>
-           ability=${abilityKey} (${signed(abilityMod)}), prof=${signed(profBonus)}, itemAtk=${signed(itemAtk)}<br/>
-           targets=[${targets.map(t => t.name).join(", ")}]
-         </div>
-       </details>`
-    : "";
-
-  await ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor: actor.actor }),
-    flavor: `${header}<div>${sub}<br>${formulaHtml}</div>${list}${gmDebug}`,
-    type: (CONST?.CHAT_MESSAGE_TYPES?.ROLL ?? 5),
-    rolls
-  });
+  // Return the results instead of creating a chat message
+  return {
+    targets: targetResults,
+    rolls,
+    info: `${abilityKey.toUpperCase()} ${signed(abilityMod)} + Prof ${signed(profBonus)} + Item ${signed(itemAtk)}`
+  };
 }

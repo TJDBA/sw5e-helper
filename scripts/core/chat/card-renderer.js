@@ -5,6 +5,9 @@
 // - All state lives in message.flags["sw5e-helper"].state
 
 export function renderAttackCard(state) {
+  const DEBUG = true; // Should match api.js debug flag
+  if (DEBUG) console.log("SW5E DEBUG: renderAttackCard() called", { state });
+  
   const l = (k) => game.i18n.localize(k);
   const isGM = game.user?.isGM === true;
   const adv = (state?.attack?.advState && state.attack.advState !== "NONE") ? ` (${state.attack.advState})` : "";
@@ -51,14 +54,24 @@ export function renderAttackCard(state) {
       saveonly: "status-saveonly",
       pending: "status-pending"
     })[status] || "status-pending";
+    
+    if (DEBUG) console.log(`SW5E DEBUG: Processing target ${t.name}`, { 
+      ref, 
+      summary: t.summary, 
+      status, 
+      atk, 
+      statusClass 
+    });
 
+    // Damage total for summary
+    const dmgDisplay = t.damage?.total != null ? `💥 ${t.damage.total}` : (saveOnly || ["hit", "crit"].includes(status)) ? "💥 --" : "—";
+    
     // Summary actions on the right (apply buttons disappear once applied)
     const summaryActions = (!t.damage || t.damage?.applied)
-      ? `${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}`
+      ? `${t.damage?.applied ? "✓" : ""} ${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}`
       : `
-        <a class="icon-btn" data-action="apply-full" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}" data-target-ref="${ref}">✔️</a>
+        💯 ½ <a class="icon-btn" data-action="apply-full" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}" data-target-ref="${ref}">💯</a>
         <a class="icon-btn" data-action="apply-half" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}" data-target-ref="${ref}">½</a>
-        <a class="icon-btn" data-action="apply-none" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}" data-target-ref="${ref}">Ø</a>
         ${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}
       `;
 
@@ -118,8 +131,8 @@ export function renderAttackCard(state) {
         <summary>
           <img class="portrait" src="${t.img}" />
           <span class="tname" data-action="${nameAction}" data-target-ref="${ref}">${t.name}</span>
-          <span class="attack-total">${atk}</span>
-          <span class="status-badge ${statusClass}">${status.toUpperCase()}</span>
+          <span class="attack-total">${atk} [${status.toUpperCase()}]</span>
+          <span class="damage-summary">${dmgDisplay}</span>
           <span class="row-actions">
             ${summaryActions}
             ${t.missing ? `<span class="missing">[${l("SW5EHELPER.Missing")}]</span>` : ""}
