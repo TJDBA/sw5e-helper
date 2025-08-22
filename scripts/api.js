@@ -154,7 +154,7 @@ export const API = {
       }));
       
       if (DEBUG) console.log("SW5E DEBUG: Final targets array", targets);
-      if (DEBUG) console.log("SW5E DEBUG: Save Checkboxes", {!!sel.saveOnHit || !!sel.saveOnly}, sel.saveOnHit, sel.saveOnly);
+      
       // Build state for the card flags
       const state = {
         kind: "attack",
