@@ -99,6 +99,20 @@ activateListeners(html) {
   super.activateListeners(html);
   const form = html[0];
 
+  const readRows = () => {
+    const rows = [];
+    html.find(".modrow").each((_, el) => {
+      const $el = $(el);
+      rows.push({
+        id: $el.data("id"),
+        formula: $el.find(".mod-formula").val()?.toString().trim() || "",
+        type: $el.find(".mod-type").val() || "kinetic",
+        inCrit: !!$el.find(".mod-incrit")[0]?.checked
+      });
+    });
+    return rows;
+  };
+
   const read = () => {
     const f = new FormData(form);
     this.state = {
@@ -109,7 +123,8 @@ activateListeners(html) {
       smart: !!form.querySelector('input[name="smart"]')?.checked,
       smartAbility: Number(f.get("smartAbility") ?? 0) || 0,
       separate: !!form.querySelector('input[name="separate"]')?.checked,
-      isCrit: !!form.querySelector('input[name="isCrit"]')?.checked
+      isCrit: !!form.querySelector('input[name="isCrit"]')?.checked,
+      extraRows: readRows()
     };
     return true;
   };
@@ -135,6 +150,22 @@ activateListeners(html) {
         this.item = this.actor?.items?.get(this.state.weaponId) || this.item;
       }
       this.render(true);
+    });
+
+    // Add damage modifier row
+    html.find("[data-action=add-row]").on("click", () => {
+      const id = crypto.randomUUID?.() ?? String(Math.random()).slice(2);
+      this.state.extraRows = [...(this.state.extraRows || []), { id, formula: "", type: "kinetic", inCrit: false }];
+      this.render(false);
+    });
+    
+    // Delete damage modifier row
+    html.on("click", "[data-action=del-row]", (ev) => {
+      const row = ev.currentTarget.closest(".modrow");
+      const id = row?.dataset?.id;
+      if (!id) return;
+      this.state.extraRows = (this.state.extraRows || []).filter(r => String(r.id) !== String(id));
+      this.render(false);
     });
 
     html.find('[data-action="cancel"]').on("click", () => { this._reject?.("cancel"); this.close(); });

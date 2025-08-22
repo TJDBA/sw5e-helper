@@ -97,19 +97,15 @@ export const API = {
           };
           if (DEBUG) console.log(`SW5E DEBUG: Set saveonly status for ${ft.name}`, { summary: row.summary });
         }
-        // Pre-seed save block if provided by dialog
-        if (sel?.save && (sel.save.dc || sel.save.dcFormula || sel.save.ability)) {
-          const dcRaw = sel.save.dc ?? sel.save.dcFormula;
+        // Pre-seed save block if save checkboxes were checked
+        if (sel.saveOnHit || sel.saveOnly) {
+          const saveAbility = sel.saveAbility || sel.save?.ability || "cha";
+          const dcRaw = sel.saveDcFormula || sel.save?.dc || sel.save?.dcFormula;
           let finalDC = dcRaw;
           let dcFormula = "";
           
-          // Skip if no DC value and no ability specified (both checkboxes unchecked)
-          if (!dcRaw && !sel.save.ability) {
-            if (DEBUG) console.log(`SW5E DEBUG: No save data for ${ft.name}, skipping save block`);
-            // Don't create save object at all
-          } else {
-            // Process save data
-            if (typeof dcRaw === "string" && dcRaw.trim()) {
+          // Process DC value or use defaults
+          if (typeof dcRaw === "string" && dcRaw.trim()) {
             dcFormula = dcRaw;
             try {
               // Create a roll to evaluate the formula - use the actual actor document for rollData
@@ -137,30 +133,28 @@ export const API = {
             } else {
               // Default: 8 + prof + ability mod - use the actor document for proper access
               const actorDoc = typeof actor.getRollData === "function" ? actor : game.actors.get(actor.id);
-              const abilityKey = sel.save.ability || "cha";
-              const abilityMod = actorDoc?.system?.abilities?.[abilityKey]?.mod ?? 0;
+              const abilityMod = actorDoc?.system?.abilities?.[saveAbility]?.mod ?? 0;
               const profBonus = actorDoc?.system?.attributes?.prof ?? 0;
               finalDC = 8 + profBonus + abilityMod;
-              dcFormula = `8 + @prof + @${abilityKey}.mod`;
+              dcFormula = `8 + @prof + @${saveAbility}.mod`;
             }
           }
           
-            row.save = { 
-              ability: sel.save.ability, 
-              dc: finalDC,
-              formula: dcFormula 
-            };
-            
-            if (DEBUG) console.log(`SW5E DEBUG: Save DC calculation for ${ft.name}`, { 
-              dcRaw, finalDC, dcFormula, save: row.save 
-            });
-          }
+          row.save = { 
+            ability: saveAbility, 
+            dc: finalDC,
+            formula: dcFormula 
+          };
+          
+          if (DEBUG) console.log(`SW5E DEBUG: Save DC calculation for ${ft.name}`, { 
+            dcRaw, finalDC, dcFormula, saveAbility, save: row.save 
+          });
         }
         return row;
       }));
       
       if (DEBUG) console.log("SW5E DEBUG: Final targets array", targets);
-
+      if (DEBUG) console.log("SW5E DEBUG: Save Checkboxes", {!!sel.saveOnHit || !!sel.saveOnly}, sel.saveOnHit, sel.saveOnly);
       // Build state for the card flags
       const state = {
         kind: "attack",
@@ -218,7 +212,7 @@ export const API = {
     );
 
     // Manual crit applies to all (separate/shared handled by dialog when we roll)
-    const critMap = Object.fromEntries(refs.map(r => [r, !!cfg.crit]));
+    const critMap = Object.fromEntries(refs.map(r => [r, !!cfg.isCrit]));
 
     const { perTargetTotals, rolls, singleTotal } = await rollDamageForTargets({
       actor, item, dmgState: cfg, targetRefs: refs, critMap

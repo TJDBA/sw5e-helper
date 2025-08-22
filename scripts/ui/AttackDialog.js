@@ -277,12 +277,6 @@ export class AttackDialog extends Application {
         }
       }
 
-      // Save-only validation
-      if (this.state.saveOnly) {
-        if (!this.state.saveAbility || !this.state.saveDcFormula) {
-          return ui.notifications.warn(game.i18n.localize("SW5EHELPER.SaveOnlyNeedsFields"));
-        }
-      }
 
       // Build payload (don’t mutate presets)
       const payload = {

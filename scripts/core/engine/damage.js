@@ -332,10 +332,19 @@ export async function rollDamage({ actor, weaponId, state }) {
 
   // Roll damage for a set of target refs using a dialog state
   export async function rollDamageForTargets({ actor, item, dmgState, targetRefs = [], critMap = {} }) {
+    console.log("SW5E DEBUG: rollDamageForTargets ENTRY", { 
+      weaponName: item?.name, 
+      dmgState, 
+      targetRefs, 
+      critMap 
+    });
+
     const { parts: baseParts, usesAtMod } = weaponParts(item);
     const base = baseParts.join(" + ") || "0";
     const brutalVal = Number(item?.system?.properties?.brutal ?? 0) || 0;
     const faces = firstDieFaces(base); // your helper
+
+    console.log("SW5E DEBUG: Weapon damage formula", { base, usesAtMod, brutalVal, faces });
 
     // ability mod (smart or chosen) with off-hand rule
     const abilityKey = dmgState.ability || item?.system?.ability || deriveDefaultAbility(item);
@@ -357,10 +366,14 @@ export async function rollDamage({ actor, weaponId, state }) {
       return f;
     };
 
-    const doRoll = async (isCrit) => {
+    const doRoll = async (isCrit, rollContext = "") => {
       const formula = makeFormula(isCrit);
       const data = usesAtMod ? { mod: abilityMod } : {};
+      console.log(`SW5E DEBUG: doRoll(${isCrit}) ${rollContext}`, { formula, data });
+      
       const roll = await (new Roll(formula, data)).evaluate({ async: true });
+      console.log(`SW5E DEBUG: Roll result ${rollContext}`, { total: roll.total, formula: roll.formula });
+      
       try { await game.dice3d?.showForRoll?.(roll, game.user, true); } catch (_) {}
       return roll;
     };
@@ -373,15 +386,16 @@ export async function rollDamage({ actor, weaponId, state }) {
 
     if (!targetRefs.length) {
       // Manual, no targets selected: single roll using global crit toggle
-      const r = await doRoll(!!dmgState.crit);
+      const r = await doRoll(!!dmgState.crit, "- manual no targets");
       rolls.push(r);
       return { perTargetTotals, rolls, singleTotal: r.total ?? 0 };
     }
 
     if (dmgState.separate) {
       // roll once per target (manual separate or card separate)
+      console.log("SW5E DEBUG: Separate rolls mode");
       for (const ref of targetRefs) {
-        const r = await doRoll(!!critMap[ref]);
+        const r = await doRoll(!!critMap[ref], `- separate for ${ref}`);
         rolls.push(r);
         perTargetTotals.set(ref, r.total ?? 0);
       }
@@ -395,7 +409,9 @@ export async function rollDamage({ actor, weaponId, state }) {
         if (!critRefs.length || !hitRefs.length) {
           // Uniform case: one roll applied to all eligible
           const isCrit = !!critRefs.length;
-          const r = await doRoll(isCrit); rolls.push(r);
+          console.log("SW5E DEBUG: Uniform case - all same type", { isCrit, critRefs: critRefs.length, hitRefs: hitRefs.length });
+          const r = await doRoll(isCrit, "- uniform case"); 
+          rolls.push(r);
           for (const ref of targetRefs) perTargetTotals.set(ref, r.total ?? 0);
           // crude type map: attribute total to "kinetic" bucket for now (placeholder for future per-part eval)
           for (const ref of targetRefs) perTargetTypes.set(ref, { kinetic: r.total ?? 0 });
@@ -404,9 +420,9 @@ export async function rollDamage({ actor, weaponId, state }) {
           // Mixed case: base(non-crit) + crit extra(only duplicated dice + brutal)
           // Build a crit-extra-only formula by duplicating only the dice-bearing pieces
           const diceOnly = (s) => (s.match(/(?:^|[+(-])\\s*\\d+d\\d+(?:\\s*[+*-]\\s*\\d+d\\d+)*/gi)?.join(" + ") || "0");
-          const baseFormula = makeFormula(false);
-          const baseRoll = await (new Roll(baseFormula)).evaluate({ async: true });
-          try { await game.dice3d?.showForRoll?.(baseRoll, game.user, true); } catch (_) {}
+          console.log("SW5E DEBUG: Mixed case - some crits, some hits", { critRefs, hitRefs });
+          
+          const baseRoll = await doRoll(false, "- mixed case base");
           rolls.push(baseRoll);
 
           // crit-extra: duplicate only dice from base + eligible extras + add brutal dice
@@ -418,7 +434,9 @@ export async function rollDamage({ actor, weaponId, state }) {
           }
           if (brutalVal > 0 && faces) critExtra = critExtra ? `${critExtra} + ${brutalVal}d${faces}` : `${brutalVal}d${faces}`;
 
+          console.log("SW5E DEBUG: Crit extra formula", { critExtra });
           const extraRoll = await (new Roll(critExtra || "0")).evaluate({ async: true });
+          console.log("SW5E DEBUG: Crit extra roll", { total: extraRoll.total });
           try { await game.dice3d?.showForRoll?.(extraRoll, game.user, true); } catch (_) {}
           rolls.push(extraRoll);
 

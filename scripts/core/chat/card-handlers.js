@@ -290,7 +290,10 @@ async function _openDamageDialog(message, state, targets, options = {}) {
   if (!actor || !item) return;
 
   // Determine if any target is a crit (for dialog prefill)
-  const hasCrit = targets.some(t => String(t?.summary?.status) === "crit");
+  // For individual target rolls, only check the specific target
+  const hasCrit = options.targetRef 
+    ? targets.some(t => _refOf(t) === options.targetRef && String(t?.summary?.status) === "crit")
+    : targets.some(t => String(t?.summary?.status) === "crit");
   
   // Build seed data from original attack state
   const seed = {
@@ -332,11 +335,26 @@ async function _openDamageDialog(message, state, targets, options = {}) {
       
       // Roll damage with dialog settings
       const targetRefs = targets.map(_refOf);
+      console.log("SW5E DEBUG: Calling rollDamageForTargets", { 
+        targetRefs, 
+        critMap, 
+        separate: !!result.separate,
+        dmgState: result,
+        isIndividualTarget: !!options.targetRef
+      });
+      
       const { perTargetTotals, perTargetTypes, rolls, info } = await rollDamageForTargets({
         actor, item,
         dmgState: result, // Use dialog result as damage state
         targetRefs, critMap,
         separate: !!result.separate
+      });
+      
+      console.log("SW5E DEBUG: rollDamageForTargets returned", { 
+        perTargetTotals, 
+        perTargetTypes, 
+        rolls: rolls?.length, 
+        info 
       });
 
       // Apply results to targets
