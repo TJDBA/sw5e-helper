@@ -81,13 +81,11 @@ export class AttackDialog extends Application {
     const showSmart = !!item?.system?.properties?.smr;
     if (showSmart) {
       const seed = parseSmartDefaults?.(item) ?? null; // { abilityMod, profBonus }|null
-      // Only seed blanks (don’t overwrite user edits)
+      // Only seed blanks (don't overwrite user edits)
       if (seed) {
         if (this.state.smartAbility === "" || this.state.smartAbility === undefined) this.state.smartAbility = seed.abilityMod;
         if (this.state.smartProf === "" || this.state.smartProf === undefined) this.state.smartProf = seed.profBonus;
       }
-    } else {
-      // Hide block; keep any stored values but don’t show them
     }
 
     // Saving-throw prefill (can be overridden)
@@ -154,17 +152,16 @@ export class AttackDialog extends Application {
   activateListeners(html) {
     super.activateListeners(html);
 
+    // FIXED: Simplified save checkbox handling - remove complex mutual exclusion
     const $hit  = html.find('input[name="saveOnHit"]');
     const $only = html.find('input[name="saveOnly"]');
 
     $hit.on("change", ev => {
       if (ev.currentTarget.checked) $only.prop("checked", false);
-      //this.render(false); // optional; remove if not needed
     });
 
     $only.on("change", ev => {
       if (ev.currentTarget.checked) $hit.prop("checked", false);
-      //this.render(false); // optional; remove if not needed
     });
 
     html.on("submit", ev => { ev.preventDefault(); ev.stopPropagation(); return false; });
@@ -179,12 +176,16 @@ export class AttackDialog extends Application {
       const f = new FormData(form);
       const saveOnHitChecked  = !!form.querySelector('input[name="saveOnHit"]')?.checked;
       const saveOnlyChecked   = !!form.querySelector('input[name="saveOnly"]')?.checked;
+      
+      // FIXED: Clean save logic - mutual exclusion but simple
       const saveOnHit  = saveOnlyChecked ? false : saveOnHitChecked;
       const saveOnly   = saveOnHitChecked ? false : saveOnlyChecked;
+      
       const adv =
         form.querySelector('input[name="adv"]:checked')?.value ??
         form.querySelector('input[name="advMode"]:checked')?.value ??
         this.state.adv ?? "normal";
+        
       this.state = {
         ...this.state,
         adv,
@@ -198,7 +199,7 @@ export class AttackDialog extends Application {
         smart: !!form.querySelector('input[name="smart"]')?.checked,
         smartAbility: (f.get("smartAbility") ?? "").toString().trim(),
         smartProf: (f.get("smartProf") ?? "").toString().trim(),
-        // Saving throw fields (set ONCE)
+        // FIXED: Clean save handling
         saveOnHit,
         saveOnly,
         saveAbility: (f.get("saveAbility") || "").toString().trim(),
@@ -209,7 +210,6 @@ export class AttackDialog extends Application {
 
     const loadState = (newState) => { this.state = { ...this.state, ...newState }; this.render(false); };
 
-    
     // Preset dropdown load
     html.find('select[name="presetName"]').on("change", async ev => {
       read();
@@ -258,11 +258,12 @@ export class AttackDialog extends Application {
         presetName: "",
         weaponId: this.context.weapons?.[0]?.id ?? "",
         ability: "", offhand: false, atkMods: "", separate: false, adv: "normal",
-        smart: false, smartAbility: 0, smartProf: 0
+        smart: false, smartAbility: 0, smartProf: 0,
+        saveOnHit: false, saveOnly: false, saveAbility: "", saveDcFormula: ""
       });
     });
 
-    // Roll (validates Smart + Save Only, then submits enriched payload)
+    // FIXED: Roll validation and payload building
     html.find("[data-action=roll]").on("click", ev => {
       ev.preventDefault(); ev.stopPropagation();
       if (!read()) return;
@@ -277,15 +278,20 @@ export class AttackDialog extends Application {
         }
       }
 
-
-      // Build payload (don’t mutate presets)
+      // FIXED: Build payload with cleaner save structure
       const payload = {
         ...sanitizeAttackState(this.state),
+        // Direct save flags for easier checking
+        saveOnHit: !!this.state.saveOnHit,
         saveOnly: !!this.state.saveOnly,
+        saveAbility: this.state.saveAbility || "",
+        saveDcFormula: this.state.saveDcFormula || "",
+        // Also include nested save object for compatibility
         save: {
           requireOnHit: !!this.state.saveOnHit,
           ability: this.state.saveAbility || "",
-          dcFormula: this.state.saveDcFormula || ""
+          dcFormula: this.state.saveDcFormula || "",
+          dc: this.state.saveDcFormula || ""
         }
       };
 
@@ -300,7 +306,6 @@ export class AttackDialog extends Application {
       this.resolve?.(null);
       this.close();
     });
-
 
     // Enter/Esc
     html.find("form").on("keydown", ev => {
@@ -330,7 +335,6 @@ export class AttackDialog extends Application {
       this.render(false);
       ui.notifications.info(`Loaded preset: ${name}`);
     });
-
   }
 
   static async prompt(context) {

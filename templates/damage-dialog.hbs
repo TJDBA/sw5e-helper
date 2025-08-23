@@ -96,29 +96,29 @@
     </table>
   </section>
 
-  {{!-- =============== Additional Damage (optional rows) =============== --}}
-  <details class="row extras">
+  {{!-- =============== Additional Damage (FIXED: prevent collapse) =============== --}}
+  <details class="row extras" {{#if extraRows.length}}open{{/if}}>
     <summary>{{localize "SW5EHELPER.ExtraModsDmg"}}</summary>
 
     <div class="extra-list">
       {{#each extraRows}}
-        <div class="extra-row" data-rowid="{{this.id}}">
-          <input type="text" name="extra.{{this.id}}.formula" value="{{this.formula}}" placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}" style="width:10rem;">
-          <select name="extra.{{this.id}}.type">
+        <div class="extra-row modrow" data-id="{{this.id}}">
+          <input type="text" class="mod-formula" name="extra.{{this.id}}.formula" value="{{this.formula}}" placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}" style="width:10rem;">
+          <select class="mod-type" name="extra.{{this.id}}.type">
             {{#each ../damageTypes}}
               <option value="{{this.value}}" {{#if (eq ../this.type this.value)}}selected{{/if}}>{{this.label}}</option>
             {{/each}}
           </select>
           <label class="chk" title="{{localize 'SW5EHELPER.IncludeInCrit'}}">
-            <input type="checkbox" name="extra.{{this.id}}.inCrit" {{#if this.inCrit}}checked{{/if}}> {{localize "SW5EHELPER.IncludeInCrit"}}
+            <input type="checkbox" class="mod-incrit" name="extra.{{this.id}}.inCrit" {{#if this.inCrit}}checked{{/if}}> {{localize "SW5EHELPER.IncludeInCrit"}}
           </label>
-          <button type="button" class="btn warn" data-action="extra-remove">{{localize "SW5EHELPER.Delete"}}</button>
+          <button type="button" class="btn warn" data-action="del-row">{{localize "SW5EHELPER.Delete"}}</button>
         </div>
       {{/each}}
     </div>
 
     <div class="row">
-      <button type="button" class="btn" data-action="extra-add">{{localize "SW5EHELPER.AddMod"}}</button>
+      <button type="button" class="btn" data-action="add-row">{{localize "SW5EHELPER.AddMod"}}</button>
     </div>
   </details>
 

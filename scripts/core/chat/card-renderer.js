@@ -12,10 +12,11 @@ export function renderAttackCard(state) {
   const isGM = game.user?.isGM === true;
   const adv = (state?.attack?.advState && state.attack.advState !== "NONE") ? ` (${state.attack.advState})` : "";
   const saveOnly = !!state?.options?.saveOnly;
+  const isManualDamage = !!state?.options?.manualDamage; // FIXED: Check for manual damage mode
 
   // Visibility logic for GM toolbar
   const gmHideRollAllDamage = (state.targets || []).every(t => {
-    const eligible = saveOnly || ["hit", "crit"].includes(String(t?.summary?.status || ""));
+    const eligible = saveOnly || isManualDamage || ["hit", "crit"].includes(String(t?.summary?.status || ""));
     if (!eligible || t.missing) return true;
     return t?.damage?.total != null;
   });
@@ -31,7 +32,7 @@ export function renderAttackCard(state) {
       ${gmHideRollAllDamage ? "" : `<a class="icon-btn" data-action="card-mod-damage"   title="${l("SW5EHELPER.ModDamage")}"   aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>`}
       ${isGM ? `
         <div class="gm-toolbar">
-          ${gmHideRollAllSaves  ? "" : `<a class="mini-btn" data-action="gm-roll-all-saves">${l("SW5EHELPER.RollAllSaves")}</a>`}
+          ${(gmHideRollAllSaves || isManualDamage) ? "" : `<a class="mini-btn" data-action="gm-roll-all-saves">${l("SW5EHELPER.RollAllSaves")}</a>`}
           <a class="mini-btn" data-action="gm-apply-all-full">${l("SW5EHELPER.ApplyAllFull")}</a>
         </div>` : ""
       }
@@ -51,6 +52,7 @@ export function renderAttackCard(state) {
       crit: "status-crit",
       fumble: "status-fumble",
       saveonly: "status-saveonly",
+      "manual-damage": "status-manual-damage",
       pending: "status-pending"
     })[status] || "status-pending";
 
@@ -60,10 +62,11 @@ export function renderAttackCard(state) {
       crit: "◆",
       fumble: "○",
       saveonly: "🛡️",
+      "manual-damage": "💥",
       pending: "●"
     })[status] || "●";
 
-    const statusText = status.toUpperCase();
+    const statusText = status === "manual-damage" ? "DAMAGE" : status.toUpperCase();
     
     if (DEBUG) console.log(`SW5E DEBUG: Processing target ${t.name}`, { 
       ref, 
@@ -74,7 +77,8 @@ export function renderAttackCard(state) {
     });
 
     // Damage total for summary
-    const dmgDisplay = t.damage?.total != null ? `💥 ${t.damage.total}` : (saveOnly || ["hit", "crit"].includes(status)) ? "💥 --" : "—";
+    const dmgDisplay = t.damage?.total != null ? `💥 ${t.damage.total}` : 
+                      (saveOnly || isManualDamage || ["hit", "crit"].includes(status)) ? "💥 --" : "—";
     
     // Summary actions on the right (apply buttons disappear once applied)
     const summaryActions = (!t.damage || t.damage?.applied)
@@ -85,8 +89,8 @@ export function renderAttackCard(state) {
         ${t.damage?.info ? `<span class="info-icon" data-action="show-damage-formula" data-target-ref="${ref}" title="${l("SW5EHELPER.DamageFormulaTooltip")}">ⓘ</span>` : ""}
       `;
 
-    // Save line - only show if save checkboxes were checked in dialog
-    const saveLine = state.hasSave
+    // Save line - only show if save checkboxes were checked in dialog AND not manual damage
+    const saveLine = (state.hasSave && !isManualDamage)
       ? `
         <div class="save-line">
           <span>${(t.save?.ability?.toUpperCase?.() || t.save?.type || l("SW5EHELPER.Save"))} | DC: 
@@ -114,7 +118,7 @@ export function renderAttackCard(state) {
       ? ""
       : `
         <span class="icons">
-          <a class="icon-btn" data-action="row-mod-damage" data-target-ref="${ref}" title="${l("SW5EHELPER.ModDamage")}" aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>
+          ${!isManualDamage ? `<a class="icon-btn" data-action="row-mod-damage" data-target-ref="${ref}" title="${l("SW5EHELPER.ModDamage")}" aria-label="${l("SW5EHELPER.ModDamage")}">🎲</a>` : ""}
           <a class="icon-btn" data-action="apply-full" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyFull")}" aria-label="${l("SW5EHELPER.ApplyFull")}">💯</a>
           <a class="icon-btn" data-action="apply-half" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyHalf")}" aria-label="${l("SW5EHELPER.ApplyHalf")}">½</a>
           <a class="icon-btn" data-action="apply-none" data-target-ref="${ref}" title="${l("SW5EHELPER.ApplyNone")}" aria-label="${l("SW5EHELPER.ApplyNone")}">Ø</a>
@@ -145,7 +149,7 @@ export function renderAttackCard(state) {
           <span class="expand-arrow">▶</span>
           <img class="portrait" src="${t.img}" />
           <span class="tname" data-action="${nameAction}" data-target-ref="${ref}">${t.name}</span>
-          ${saveOnly 
+          ${(saveOnly && !isManualDamage)
             ? `<span class="save-summary">
                 ${t.save?.ability?.toUpperCase() || 'SAVE'} DC ${t.save?.dc ?? '—'}
                 ${t.save?.roll ? ` | ${t.save.roll.total} ${
@@ -155,6 +159,8 @@ export function renderAttackCard(state) {
                   t.save.roll.outcome === "fumble" ? "💩" : ""
                 }` : ''}
                </span>`
+            : isManualDamage
+            ? `<span class="damage-summary">${dmgDisplay}</span>`
             : `<span class="attack-total">${atk} <span class="status-icon ${statusClass}" title="${statusText}">${statusIcon}</span></span>
                <span class="damage-summary">${dmgDisplay}</span>`
           }
@@ -176,17 +182,18 @@ export function renderAttackCard(state) {
     ? `<span class="info-icon" data-action="show-attack-formula" title="${l("SW5EHELPER.AttackFormulaTooltip")}">ⓘ</span>`
     : "";
 
-  // Header changes based on save-only mode
+  // Header changes based on mode
   const weaponName = state.itemName || state.weaponName || "Unknown Weapon";
-  const headerTitle = saveOnly 
-    ? `${weaponName}`
-    : `${weaponName}`;
+  const headerTitle = isManualDamage ? `${weaponName} - Manual Damage` :
+                     saveOnly ? `${weaponName}` :
+                     `${weaponName}`;
 
   if (DEBUG) console.log("SW5E DEBUG: Header title info", { 
     weaponName, 
     itemName: state.itemName, 
     weaponImg: state.weaponImg, 
-    headerTitle 
+    headerTitle,
+    isManualDamage
   });
 
   const header = `

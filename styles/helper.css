@@ -14,7 +14,7 @@
 .sw5e-helper-damage .row select,
 .sw5e-helper-damage .row input,
 .sw5e-helper-damage .row button {
-  width: auto !important;      /* override Foundry’s 100% width */
+  width: auto !important;      /* override Foundry's 100% width */
   max-width: 100%;
   flex: 0 0 auto;
   height: 26px;                /* consistent control height */
@@ -22,7 +22,7 @@
   padding: 2px 6px;
 }
 
-/* labels shouldn’t wrap */
+/* labels shouldn't wrap */
 .sw5e-helper-attack .row > label,
 .sw5e-helper-damage .row > label,
 .sw5e-helper-attack .row span,
@@ -45,7 +45,7 @@
   flex: 0 0 auto;
 }
 
-/* Favorites & Weapon selects get a little breathing room so they don’t force wraps */
+/* Favorites & Weapon selects get a little breathing room so they don't force wraps */
 .sw5e-helper-attack .row.favorites select,
 .sw5e-helper-damage .row.favorites select { min-width: 180px; }
 .sw5e-helper-attack .row.weapon select,
@@ -95,6 +95,7 @@
 .sw5e-helper-card .status-crit { background:#244a2f; color:#eaffea; }
 .sw5e-helper-card .status-fumble { background:#4a2424; color:#ffeeee; }
 .sw5e-helper-card .status-saveonly { background:#333; color:#eee; }
+.sw5e-helper-card .status-manual-damage { background:#4a4023; color:#ffffdd; }
 .sw5e-helper-card .save-line.save-required { opacity:.85; font-style:italic; }
 .sw5e-helper-card .applied-tag { margin-left:.4rem; opacity:.9; }
 .sw5e-helper-card .missing { opacity:.6; }
@@ -119,4 +120,34 @@
 }
 .sw5e-helper-card details[open] .expand-arrow { 
   transform: rotate(90deg); 
+}
+
+/* FIXED: Prevent dialog collapse when adding/removing rows */
+.sw5e-helper-damage details.extras {
+  margin: 0.5rem 0;
+}
+
+.sw5e-helper-damage .extra-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+  padding: 0.25rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+}
+
+.sw5e-helper-damage .extra-row input[type="text"] {
+  flex: 1 1 200px;
+  min-width: 150px;
+}
+
+.sw5e-helper-damage .extra-row select {
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+.sw5e-helper-damage .extra-row .chk {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }

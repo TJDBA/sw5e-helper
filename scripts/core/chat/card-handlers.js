@@ -5,7 +5,7 @@
 // - Works with renderAttackCard(state) to fully re-render the card
 
 import { renderAttackCard } from "./card-renderer.js";
-import { rollDamageForTargets } from "../../core/engine/damage.js";
+import { rollDamageForTargets } from "../engine/damage.js";
 import { DamageDialog } from "../../ui/DamageDialog.js";
 
 /* ----------------------------- bootstrap ----------------------------- */
@@ -23,6 +23,7 @@ async function _onCardClick(ev, message) {
   const el = ev.target.closest("[data-action]");
   if (!el) return;
   ev.preventDefault();
+  ev.stopPropagation(); // FIXED: Prevent event bubbling that could cause duplicate handlers
 
   const action = el.dataset.action;
   const root   = el.closest(".sw5e-helper-card");
@@ -34,6 +35,8 @@ async function _onCardClick(ev, message) {
 
   // Determine target ref if any
   const ref   = el.dataset.targetRef || el.closest(".target-row")?.dataset?.targetRef || null;
+
+  console.log("SW5E DEBUG: Card click action", { action, ref });
 
   /* ------------------------------- routers ------------------------------- */
 
@@ -100,7 +103,7 @@ async function _onCardClick(ev, message) {
     return;
   }
 
-  // Per-row mod damage → open dialog for specific target
+  // FIXED: Per-row mod damage → open dialog for specific target (prevent duplicate rolling)
   if (action === "row-mod-damage") {
     console.log("SW5E DEBUG: row-mod-damage clicked", { ref, action });
     const t = _rowByRef(state, ref);
@@ -109,7 +112,18 @@ async function _onCardClick(ev, message) {
       return;
     }
     console.log("SW5E DEBUG: Opening damage dialog for target", { target: t });
-    await _openDamageDialog(message, state, [t], { separate: true, targetRef: ref });
+    
+    // FIXED: Prevent multiple calls by disabling the button temporarily
+    el.style.pointerEvents = 'none';
+    el.style.opacity = '0.5';
+    
+    try {
+      await _openDamageDialog(message, state, [t], { separate: true, targetRef: ref });
+    } finally {
+      // Re-enable button after operation completes
+      el.style.pointerEvents = '';
+      el.style.opacity = '';
+    }
     return;
   }
 
@@ -120,12 +134,8 @@ async function _onCardClick(ev, message) {
     const mode = action === "apply-full" ? "full" : action === "apply-half" ? "half" : "none";
     const amt  = Number(t.damage.total ?? 0);
     const applied = _applyAmount(amt, mode);
-    // Placeholder for future resistances/reactions pipeline:
-    // Hooks.call("sw5eHelper.preApplyDamage", { state, target:t, amount:amt, mode, types:t.damage?.types });
     t.damage.applied = mode;
     t.damage.appliedAmount = applied;
-    // If you want to call system apply: try token.actor.applyDamage(applied)
-    // Hooks.callAll("sw5eHelper.postApplyDamage", { state, target:t, appliedAmount:applied, mode, types:t.damage?.types });
     return _update(message, state);
   }
 
@@ -220,7 +230,7 @@ async function _rollSaveForTarget(t) {
   const r = new Roll(formula);
   await r.evaluate({ async: true });
   
-  // Manually trigger DSN animation for save rolls - try without await first
+  // Manually trigger DSN animation for save rolls
   try { 
     game.dice3d?.showForRoll?.(r, game.user, true); 
     console.log("SW5E DEBUG: DSN animation triggered for save roll");
@@ -284,13 +294,19 @@ async function _rollAndPersistDamage(message, state, rows, { separate }) {
   if (rolls?.length) await _appendRolls(message, rolls);
 }
 
+// FIXED: Simplified damage dialog handling to prevent duplicate rolling
 async function _openDamageDialog(message, state, targets, options = {}) {
   const actor = _actorFromState(state);
   const item = _itemFromState(state);
   if (!actor || !item) return;
 
+  console.log("SW5E DEBUG: _openDamageDialog called", { 
+    targets: targets.length, 
+    options,
+    isIndividual: !!options.targetRef 
+  });
+
   // Determine if any target is a crit (for dialog prefill)
-  // For individual target rolls, only check the specific target
   const hasCrit = options.targetRef 
     ? targets.some(t => _refOf(t) === options.targetRef && String(t?.summary?.status) === "crit")
     : targets.some(t => String(t?.summary?.status) === "crit");
@@ -298,12 +314,13 @@ async function _openDamageDialog(message, state, targets, options = {}) {
   // Build seed data from original attack state
   const seed = {
     weaponId: state.itemId,
-    ability: state.options?.smart ? "manual" : "", // Let dialog derive from weapon if not smart
+    ability: state.options?.smart ? "manual" : "", 
     offhand: !!state.options?.offhand,
     smart: !!state.options?.smart,
     smartAbility: state.options?.smartAbility || 0,
     separate: !!options.separate,
-    isCrit: hasCrit && !options.separate // For "roll all", show crit as info only
+    isCrit: hasCrit && !options.separate,
+    extraRows: [] // Start with empty extra rows
   };
 
   try {
@@ -318,6 +335,8 @@ async function _openDamageDialog(message, state, targets, options = {}) {
     const result = await dialog.wait();
     
     if (result) {
+      console.log("SW5E DEBUG: Dialog returned result", { result });
+      
       // Build crit map from target status for per-target crits
       const critMap = {};
       for (const t of targets) {
@@ -335,7 +354,7 @@ async function _openDamageDialog(message, state, targets, options = {}) {
       
       // Roll damage with dialog settings
       const targetRefs = targets.map(_refOf);
-      console.log("SW5E DEBUG: Calling rollDamageForTargets", { 
+      console.log("SW5E DEBUG: About to call rollDamageForTargets", { 
         targetRefs, 
         critMap, 
         separate: !!result.separate,
@@ -350,7 +369,7 @@ async function _openDamageDialog(message, state, targets, options = {}) {
         separate: !!result.separate
       });
       
-      console.log("SW5E DEBUG: rollDamageForTargets returned", { 
+      console.log("SW5E DEBUG: rollDamageForTargets completed", { 
         perTargetTotals, 
         perTargetTypes, 
         rolls: rolls?.length, 
@@ -370,6 +389,8 @@ async function _openDamageDialog(message, state, targets, options = {}) {
 
       if (rolls?.length) await _appendRolls(message, rolls);
       await _update(message, state);
+      
+      console.log("SW5E DEBUG: Damage dialog handling completed");
     }
   } catch (e) {
     console.error("SW5E Helper: Damage dialog error", e);

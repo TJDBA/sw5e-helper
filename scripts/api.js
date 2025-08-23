@@ -97,21 +97,24 @@ export const API = {
           };
           if (DEBUG) console.log(`SW5E DEBUG: Set saveonly status for ${ft.name}`, { summary: row.summary });
         }
-        // Pre-seed save block if save checkboxes were checked
-        if (sel.saveOnHit || sel.saveOnly) {
+        
+        // FIXED: Only create save block if actually needed (not just defaults)
+        const hasAnySave = sel.saveOnHit || sel.saveOnly;
+        
+        if (hasAnySave) {
           const saveAbility = sel.saveAbility || sel.save?.ability || "cha";
           const dcRaw = sel.saveDcFormula || sel.save?.dc || sel.save?.dcFormula;
           let finalDC = dcRaw;
           let dcFormula = "";
           
-          // Process DC value or use defaults
-          if (typeof dcRaw === "string" && dcRaw.trim()) {
-            dcFormula = dcRaw;
+          // Only process DC if user provided one
+          if (dcRaw && String(dcRaw).trim()) {
+            dcFormula = String(dcRaw).trim();
             try {
               // Create a roll to evaluate the formula - use the actual actor document for rollData
               const actorDoc = typeof actor.getRollData === "function" ? actor : game.actors.get(actor.id);
               const rollData = actorDoc?.getRollData?.() || {};
-              const roll = new Roll(dcRaw, rollData);
+              const roll = new Roll(dcFormula, rollData);
               if (typeof roll.evaluate === "function") {
                 await roll.evaluate({ async: true });
               } else if (typeof roll.roll === "function") {
@@ -123,32 +126,31 @@ export const API = {
               // Try simple number conversion
               finalDC = Number(dcRaw) || dcRaw;
             }
-          } else if (typeof dcRaw === "number") {
-            finalDC = dcRaw;
           } else {
-            // No save DC provided, try item default or calculate 8 + prof + mod
+            // No save DC provided by user, try item default
             const itemDC = item?.system?.save?.dc;
             if (itemDC) {
               finalDC = itemDC;
+              dcFormula = String(itemDC);
             } else {
-              // Default: 8 + prof + ability mod - use the actor document for proper access
-              const actorDoc = typeof actor.getRollData === "function" ? actor : game.actors.get(actor.id);
-              const abilityMod = actorDoc?.system?.abilities?.[saveAbility]?.mod ?? 0;
-              const profBonus = actorDoc?.system?.attributes?.prof ?? 0;
-              finalDC = 8 + profBonus + abilityMod;
-              dcFormula = `8 + @prof + @${saveAbility}.mod`;
+              // No DC available - leave null to indicate missing DC
+              finalDC = null;
+              dcFormula = "";
             }
           }
           
-          row.save = { 
-            ability: saveAbility, 
-            dc: finalDC,
-            formula: dcFormula 
-          };
-          
-          if (DEBUG) console.log(`SW5E DEBUG: Save DC calculation for ${ft.name}`, { 
-            dcRaw, finalDC, dcFormula, saveAbility, save: row.save 
-          });
+          // Only add save if we have a valid DC
+          if (finalDC != null) {
+            row.save = { 
+              ability: saveAbility, 
+              dc: finalDC,
+              formula: dcFormula 
+            };
+            
+            if (DEBUG) console.log(`SW5E DEBUG: Save DC calculation for ${ft.name}`, { 
+              dcRaw, finalDC, dcFormula, saveAbility, save: row.save 
+            });
+          }
         }
         return row;
       }));
@@ -165,7 +167,8 @@ export const API = {
         weaponId: item?.id,
         itemName: item?.name,
         weaponImg: item?.img ?? item?.system?.img,
-        hasSave: !!sel.saveOnHit || !!sel.saveOnly,
+        // FIXED: Proper hasSave logic - only true if save checkboxes were actually checked AND have valid DC
+        hasSave: !!(sel.saveOnHit || sel.saveOnly) && targets.some(t => t.save && t.save.dc != null),
         options: {
           separate: !!sel.separate,
           adv: sel.adv ?? "normal",
@@ -207,30 +210,49 @@ export const API = {
     if (!item) return ui.notifications.warn("SW5E Helper: Could not resolve weapon item.");
 
     // Use currently selected targets on the canvas (manual flow)
-    const refs = Array.from(game.user.targets ?? []).map(
-      t => `${t.document?.parent?.id ?? canvas.scene?.id}:${t.id}`
-    );
+    const frozenTargets = _freezeTargets();
+    const refs = frozenTargets.map(t => `${t.sceneId}:${t.tokenId}`);
 
     // Manual crit applies to all (separate/shared handled by dialog when we roll)
     const critMap = Object.fromEntries(refs.map(r => [r, !!cfg.isCrit]));
 
-    const { perTargetTotals, rolls, singleTotal } = await rollDamageForTargets({
-      actor, item, dmgState: cfg, targetRefs: refs, critMap
+    const { perTargetTotals, perTargetTypes, rolls, info } = await rollDamageForTargets({
+      actor, item, dmgState: cfg, targetRefs: refs, critMap, separate: !!cfg.separate
     });
 
-    // Simple chat output for manual run
-    const lines = refs.length
-      ? Array.from(game.user.targets).map(t => {
-          const ref = `${t.document?.parent?.id ?? canvas.scene?.id}:${t.id}`;
-          const tot = perTargetTotals.get(ref) ?? 0;
-          return `<div>${t.name}: <strong>${tot}</strong></div>`;
-        })
-      : [`<div>${item.name}: <strong>${singleTotal ?? 0}</strong></div>`];
-
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="sw5e-helper-manual-damage"><div><em>${item.name}</em> — ${game.i18n.localize("SW5EHELPER.Damage")}</div>${lines.join("")}</div>`,
-      rolls
+    // FIXED: Use attack card template for manual damage with damage-only state
+    const targets = frozenTargets.map(ft => {
+      const ref = `${ft.sceneId}:${ft.tokenId}`;
+      const total = perTargetTotals.get(ref);
+      return {
+        ...ft,
+        summary: { status: "manual-damage" }, // Special status for manual damage
+        damage: total != null ? {
+          total,
+          types: perTargetTypes.get(ref) || { kinetic: total },
+          info: info || ""
+        } : null
+      };
     });
+
+    const state = {
+      kind: "manual-damage",
+      messageId: null,
+      authorId: game.user.id,
+      actorId: actor.id,
+      itemId: item?.id,
+      weaponId: item?.id,
+      itemName: item?.name,
+      weaponImg: item?.img ?? item?.system?.img,
+      hasSave: false, // Manual damage never shows saves
+      options: {
+        separate: !!cfg.separate,
+        manualDamage: true // Flag to indicate this is manual damage mode
+      },
+      targets
+    };
+
+    // Create card using same template as attack
+    await _createAttackCardMessage({ actor, state, rolls });
   }
 };
