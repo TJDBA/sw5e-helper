@@ -278,6 +278,13 @@ export class AttackDialog extends Application {
         }
       }
 
+      // FIXED: Set default save DC formula if save checkboxes are checked but formula is empty
+      let saveDcFormula = this.state.saveDcFormula || "";
+      const hasSaveChecked = !!this.state.saveOnHit || !!this.state.saveOnly;
+      if (hasSaveChecked && (!saveDcFormula || saveDcFormula.trim() === "")) {
+        saveDcFormula = "8 + @prof + @mod";
+      }
+
       // FIXED: Build payload with cleaner save structure
       const payload = {
         ...sanitizeAttackState(this.state),
@@ -285,13 +292,13 @@ export class AttackDialog extends Application {
         saveOnHit: !!this.state.saveOnHit,
         saveOnly: !!this.state.saveOnly,
         saveAbility: this.state.saveAbility || "",
-        saveDcFormula: this.state.saveDcFormula || "",
+        saveDcFormula,
         // Also include nested save object for compatibility
         save: {
           requireOnHit: !!this.state.saveOnHit,
           ability: this.state.saveAbility || "",
-          dcFormula: this.state.saveDcFormula || "",
-          dc: this.state.saveDcFormula || ""
+          dcFormula: saveDcFormula,
+          dc: saveDcFormula
         }
       };
 
