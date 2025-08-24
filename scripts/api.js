@@ -52,7 +52,7 @@ export const API = {
 
       // (Optional) sanity check template path
       const mod = game.modules.get(MOD);
-      const tpl = `${mod?.path || `modules/${MOD}`}/templates/attack-dialog.hbs`;
+      const tpl = `modules/${MOD}/templates/attack-dialog.hbs`;
       await fetch(tpl).then(r => { if (!r.ok) throw new Error(`Template fetch failed: ${r.status} ${r.statusText}`); r.text(); });
 
       // Open dialog
