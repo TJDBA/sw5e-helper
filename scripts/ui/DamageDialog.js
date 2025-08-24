@@ -1,63 +1,76 @@
 // scripts/ui/DamageDialog.js
-const MOD = "sw5e-helper";
-const DAMAGE_TYPES = ["kinetic","energy","ion","acid","cold","fire","force","lightning","necrotic","poison","psychic","sonic","true"];
+// SW5E Helper - Simplified Damage Dialog
+// Now extends BaseDialog to eliminate duplication and add pack integration
 
-export class DamageDialog extends FormApplication {
-  static get defaultOptions() {
-    const mod = game.modules.get(MOD);
-    const base = mod?.path || `modules/${MOD}`;
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: "sw5e-helper-damage",
-      template: `${base}/templates/damage-dialog.hbs`,
-      classes: ["sw5e-helper", "damage"],
-      width: 560,
-      height: "auto",
-      resizable: true,
-      title: game.i18n.localize("SW5EHELPER.Damage") || "Damage"
+import { BaseDialog } from "./BaseDialog.js";
+import { ConfigHelper, SW5E_CONFIG } from "../core/config.js";
+import { sanitizeDamageState } from "../core/services/presets.js";
+
+export class DamageDialog extends BaseDialog {
+  constructor(options = {}) {
+    const { actor, item, weapons, seed, scope } = options;
+    
+    super({
+      context: { actor, item, weapons },
+      dialogType: "damage",
+      seed
     });
-  }
 
-  /** @param {{actor:Actor, item:Item, seed?:object, scope?:{type:"card"|"row", ref?:string}}} opts */
-  constructor(opts) {
-    super();
-    this.actor = opts.actor;
-    this.item  = opts.item ?? null;        
-    this.weapons = opts.weapons ?? null;   
-    this.scope = opts.scope || { type: "card" };
-    const s = opts.seed || {};
-    this.state = {
-      // seeded from card
-      weaponId: s.weaponId || this.item?.id || (this.weapons?.[0]?.id ?? ""),
-      ability: s.ability || "",
-      offhand: !!s.offhand,
-      smart: !!s.smart,
-      smartAbility: Number(s.smartAbility ?? 0) || 0,
-      separate: !!s.separate,
-      isCrit: !!s.isCrit,
-      // extras (none by default; you can wire preset support later)
-      extraRows: s.extraRows ?? [],
-      presetName: "",
-    };
-    this._resolve = null;
-    this._reject = null;
-  }
-
-  async wait() {
-    return new Promise((res, rej) => { this._resolve = res; this._reject = rej; });
-  }
-
-  // ---------- data ----------
-  async getData() {
-    // Resolve item from weapons if not provided
-    if (!this.item) {
-      const list = Array.isArray(this.weapons) ? this.weapons : [];
-      const selId = this.state.weaponId || list[0]?.id;
-      if (selId) this.item = this.actor?.items?.get(selId);
+    this.scope = scope || { type: "manual" };
+    
+    // Set dialog-specific options
+    this.options.title = game.i18n.localize(SW5E_CONFIG.I18N_KEYS.DAMAGE_TITLE);
+    this.options.classes.push(SW5E_CONFIG.CSS_CLASSES.DIALOG_DAMAGE);
+    this.options.width = 560;
+    
+    // Resolve item from weapons if not provided directly
+    if (!this.context.item && weapons?.length) {
+      const selectedId = this.state.weaponId || weapons[0]?.id;
+      this.context.item = actor?.items?.get?.(selectedId);
     }
-    if (!this.item) throw new Error("DamageDialog requires a valid weapon Item.");
+  }
 
-    const item = this.item;
-    const sys  = item.system ?? {};
+  /**
+   * Get default state for damage dialog
+   * @returns {Object} Default damage state
+   */
+  getDefaultState() {
+    return {
+      ...super.getDefaultState(),
+      
+      // Core damage options
+      ability: "",
+      offhand: false,
+      smart: false,
+      smartAbility: 0,
+      separate: false,
+      isCrit: false,
+      
+      // Extra damage modifiers
+      extraRows: [],
+      
+      // Damage options
+      useMinDie: false,
+      
+      // Once-per-turn toggles
+      otpDamageAdv: false,
+      otpDamageDis: false
+    };
+  }
+
+  /**
+   * Get damage-specific template data
+   * @param {Item} item - Selected weapon item
+   * @param {Object} baseData - Base template data
+   * @returns {Object} Damage-specific data
+   */
+  async getSpecificData(item, baseData) {
+    if (!item) {
+      throw new Error("DamageDialog requires a valid weapon Item.");
+    }
+
+    // Parse weapon damage parts
+    const sys = item.system ?? {};
     const parts = Array.isArray(sys.damage?.parts) ? sys.damage.parts : [];
     const weaponDamageParts = parts.map(([formula, type], idx) => ({
       formula: String(formula || "0"),
@@ -65,152 +78,256 @@ export class DamageDialog extends FormApplication {
       isBase: idx === 0
     }));
 
-    const showSmart  = !!sys.properties?.smr;
-    const brutalVal  = Number(sys.properties?.brutal ?? 0) || 0;
+    // Smart weapon info
+    const showSmart = !!sys.properties?.smr;
+    
+    // Brutal weapon info
+    const brutalVal = Number(sys.properties?.brutal ?? 0) || 0;
     const showBrutal = brutalVal > 0;
-    const baseFaces  = _firstDieFaces(weaponDamageParts[0]?.formula);
+    const baseFaces = this._getFirstDieFaces(weaponDamageParts[0]?.formula);
 
+    // Weapon locking (for card-initiated dialogs)
     const weaponLocked = this.scope?.type === "card" || this.scope?.type === "row";
 
     return {
-      weapons: this.weapons ? this.weapons.map(w => ({ id:w.id, name:w.name, selected: w.id === this.state.weaponId }))
-                            : [{ id: item.id, name: item.name, selected: true }],
+      // Weapon info
       weaponLocked,
-      presets: [],
-      abilities: ["str","dex","con","int","wis","cha"],
-
-      ability: this.state.ability,
-      offhand: this.state.offhand,
+      weaponDamageParts,
+      
+      // Smart weapon
+      showSmart,
       smart: this.state.smart,
       smartAbility: this.state.smartAbility,
-      separate: this.state.separate,
-      isCrit: this.state.isCrit,
-
-      showSmart,
-      weaponDamageParts,
+      
+      // Brutal weapon
       showBrutal,
       brutalXdY: showBrutal && baseFaces ? `${brutalVal}d${baseFaces}` : "",
       
-      extraRows: this.state.extraRows,
-      damageTypes: DAMAGE_TYPES.map(type => ({ value: type, label: type }))
+      // Basic options
+      ability: this.state.ability,
+      offhand: this.state.offhand,
+      separate: this.state.separate,
+      isCrit: this.state.isCrit,
+      
+      // Extra rows
+      extraRows: this.state.extraRows || [],
+      
+      // Advanced options
+      useMinDie: this.state.useMinDie,
+      otpDamageAdv: this.state.otpDamageAdv,
+      otpDamageDis: this.state.otpDamageDis
     };
   }
 
-  activateListeners(html) {
-    super.activateListeners(html);
-    const form = html[0];
-
-    const readRows = () => {
-      const rows = [];
-      html.find(".modrow").each((_, el) => {
-        const $el = $(el);
-        rows.push({
-          id: $el.data("id"),
-          formula: $el.find(".mod-formula").val()?.toString().trim() || "",
-          type: $el.find(".mod-type").val() || "kinetic",
-          inCrit: !!$el.find(".mod-incrit")[0]?.checked
-        });
-      });
-      return rows;
-    };
-
-    const read = () => {
-      const f = new FormData(form);
-      this.state = {
-        ...this.state,
-        weaponId: (f.get("weaponId") || this.state.weaponId).toString(),
-        ability: (f.get("ability") || "").toString().trim(),
-        offhand: !!form.querySelector('input[name="offhand"]')?.checked,
-        smart: !!form.querySelector('input[name="smart"]')?.checked,
-        smartAbility: Number(f.get("smartAbility") ?? 0) || 0,
-        separate: !!form.querySelector('input[name="separate"]')?.checked,
-        isCrit: !!form.querySelector('input[name="isCrit"]')?.checked,
-        extraRows: readRows()
-      };
-      return true;
-    };
-
-    // FIXED: Add damage modifier row - use direct DOM manipulation instead of re-rendering
+  /**
+   * Add damage-specific event listeners
+   * @param {jQuery} html - Dialog HTML
+   */
+  activateSpecificListeners(html) {
+    // Add/remove extra damage rows
     html.find('[data-action="add-row"], [data-action="extra-add"]').on("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      
-      const id = crypto.randomUUID?.() ?? String(Math.random()).slice(2);
-      
-      // Create new row HTML
-      const newRowHtml = `
-        <div class="modrow extra-row" data-id="${id}">
-          <input type="text" class="mod-formula" placeholder="1d6" value="" />
-          <select class="mod-type">
-            ${DAMAGE_TYPES.map(type => `<option value="${type}">${type}</option>`).join('')}
-          </select>
-          <label><input type="checkbox" class="mod-incrit" /> In Crit</label>
-          <button type="button" data-action="remove-row" data-id="${id}" title="Remove Row">×</button>
-        </div>
-      `;
-      
-      // Add to existing container (preserves all user input)
-      const container = html.find('.extra-rows-container, .extras-content, .extras .form-group').last();
-      if (container.length) {
-        container.append(newRowHtml);
-      } else {
-        // Fallback: add after the last modrow
-        html.find('.modrow').last().after(newRowHtml);
-      }
-      
-      // Update internal state
-      this.state.extraRows = [...(this.state.extraRows || []), { id, formula: "", type: "kinetic", inCrit: false }];
+      this._addExtraRow(html);
     });
-    
-    // FIXED: Delete damage modifier row - use direct DOM removal instead of re-rendering
+
     html.on("click", '[data-action="del-row"], [data-action="extra-remove"], [data-action="remove-row"]', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      
-      const row = ev.currentTarget.closest(".modrow, .extra-row");
-      const id = row?.dataset?.id || row?.dataset?.rowid || $(ev.currentTarget).data('id');
-      if (!id) return;
-      
-      // Remove from DOM immediately (preserves all other user input)
-      $(row).remove();
-      
-      // Update internal state
-      this.state.extraRows = (this.state.extraRows || []).filter(r => String(r.id) !== String(id));
+      this._removeExtraRow(html, ev);
     });
 
-    // When user changes weapon in manual mode, re-resolve this.item and re-render
+    // When weapon changes in manual mode, update item and re-render
     html.find('select[name="weaponId"]').on("change", (ev) => {
-      read();
+      this._readFormState(html.find("form")[0]);
       if (this.scope?.type === "manual" && this.state.weaponId) {
-        this.item = this.actor?.items?.get(this.state.weaponId) || this.item;
+        this.context.item = this.context.actor?.items?.get(this.state.weaponId) || this.context.item;
       }
       this.render(true);
     });
+  }
 
-    html.find('[data-action="cancel"]').on("click", () => { 
-      this._resolve?.(null); 
-      this.close(); 
+  /**
+   * Read damage-specific state from form
+   * @param {FormData} formData - Form data
+   * @param {HTMLFormElement} form - Form element
+   */
+  readSpecificState(formData, form) {
+    // Read extra rows from DOM
+    const extraRows = [];
+    form.querySelectorAll(".modrow, .extra-row").forEach(row => {
+      const id = row.dataset.id || row.dataset.rowid;
+      if (id) {
+        const formulaInput = row.querySelector(".mod-formula");
+        const typeSelect = row.querySelector(".mod-type");
+        const critCheckbox = row.querySelector(".mod-incrit");
+
+        extraRows.push({
+          id,
+          formula: formulaInput?.value?.trim() || "",
+          type: typeSelect?.value || "kinetic",
+          inCrit: !!critCheckbox?.checked
+        });
+      }
     });
 
-    html.find('[data-action="roll"]').on("click", async () => {
-      read();
+    // Update state
+    Object.assign(this.state, {
+      ability: (formData.get("ability") || "").trim(),
+      offhand: !!form.querySelector('input[name="offhand"]')?.checked,
+      smart: !!form.querySelector('input[name="smart"]')?.checked,
+      smartAbility: Number(formData.get("smartAbility") ?? 0) || 0,
+      separate: !!form.querySelector('input[name="separate"]')?.checked,
+      isCrit: !!form.querySelector('input[name="isCrit"]')?.checked,
       
-      // Return the state directly - the caller will handle the rolling
-      this._resolve?.(this.state);
-      this.close();
+      extraRows,
+      
+      useMinDie: !!form.querySelector('input[name="useMinDie"]')?.checked,
+      otpDamageAdv: !!form.querySelector('input[name="otpDamageAdv"]')?.checked,
+      otpDamageDis: !!form.querySelector('input[name="otpDamageDis"]')?.checked
     });
+  }
+
+  /**
+   * Validate damage-specific state
+   * @returns {Array} Array of validation errors
+   */
+  validateState() {
+    const errors = super.validateState();
+
+    // Validate extra damage formulas
+    for (const row of this.state.extraRows || []) {
+      if (row.formula && !ConfigHelper.validateDamageFormula(row.formula)) {
+        errors.push(`Invalid damage formula: ${row.formula}`);
+      }
+    }
+
+    // Smart weapon validation
+    if (this.state.smart) {
+      const smartAbility = Number(this.state.smartAbility);
+      if (!Number.isFinite(smartAbility)) {
+        errors.push("Smart weapon ability modifier must be a number");
+      }
+    }
+
+    return errors;
+  }
+
+  /**
+   * Build damage submission payload
+   * @returns {Object} Damage payload
+   */
+  buildSubmissionPayload() {
+    return {
+      ...sanitizeDamageState(this.state),
+      packState: this.state.packState
+    };
+  }
+
+  /**
+   * Sanitize damage state for preset storage
+   * @param {Object} state - State to sanitize
+   * @returns {Object} Sanitized state
+   */
+  sanitizeStateForPreset(state) {
+    return {
+      ...super.sanitizeStateForPreset(state),
+      ...sanitizeDamageState(state),
+      weaponId: state.weaponId
+    };
+  }
+
+  /* ----------------------------- Extra Row Management ----------------------------- */
+
+  /**
+   * Add a new extra damage row
+   * @param {jQuery} html - Dialog HTML
+   */
+  _addExtraRow(html) {
+    const id = crypto.randomUUID?.() ?? String(Math.random()).slice(2);
+    
+    // Create new row HTML
+    const newRowHtml = `
+      <div class="modrow extra-row" data-id="${id}">
+        <input type="text" class="mod-formula" placeholder="1d6" value="" />
+        <select class="mod-type">
+          ${SW5E_CONFIG.DAMAGE_TYPES.map(type => 
+            `<option value="${type}">${type}</option>`
+          ).join('')}
+        </select>
+        <label><input type="checkbox" class="mod-incrit" /> Include in Crit</label>
+        <button type="button" data-action="remove-row" data-id="${id}" title="Remove Row">×</button>
+      </div>
+    `;
+    
+    // Find container and add row
+    const container = html.find('.extra-rows-container, .extras-content, .extras .form-group, .extra-list').last();
+    if (container.length) {
+      container.append(newRowHtml);
+    } else {
+      // Fallback: add after the last modrow
+      html.find('.modrow').last().after(newRowHtml);
+    }
+    
+    // Update internal state
+    this.state.extraRows = [...(this.state.extraRows || []), { 
+      id, 
+      formula: "", 
+      type: "kinetic", 
+      inCrit: false 
+    }];
+
+    ConfigHelper.debug("dialogs", "Added extra damage row", { id });
+  }
+
+  /**
+   * Remove an extra damage row
+   * @param {jQuery} html - Dialog HTML  
+   * @param {Event} ev - Click event
+   */
+  _removeExtraRow(html, ev) {
+    const row = ev.currentTarget.closest(".modrow, .extra-row");
+    const id = row?.dataset?.id || row?.dataset?.rowid || $(ev.currentTarget).data('id');
+    
+    if (!id) return;
+    
+    // Remove from DOM
+    $(row).remove();
+    
+    // Update internal state
+    this.state.extraRows = (this.state.extraRows || []).filter(r => String(r.id) !== String(id));
+
+    ConfigHelper.debug("dialogs", "Removed extra damage row", { id });
+  }
+
+  /* ----------------------------- Utilities ----------------------------- */
+
+  /**
+   * Get first die faces from a damage formula
+   * @param {string} formula - Damage formula
+   * @returns {number|null} Die faces or null
+   */
+  _getFirstDieFaces(formula) {
+    const match = String(formula || "").match(/(\d*)d(\d+)/i);
+    return match ? Number(match[2]) : null;
+  }
+
+  /**
+   * Wait for dialog completion
+   * @returns {Promise} Dialog result promise
+   */
+  async wait() {
+    return super.wait();
   }
 }
 
-// ---------- internal helpers (dialog-local) ----------
-function _firstDieFaces(formula) {
-  const m = String(formula || "").match(/(\d*)d(\d+)/i);
-  return m ? Number(m[2]) : null;
-}
-
-// convenience
-export async function openDamageDialog({ actor, item, weapons, seed, scope }) {
-  const dlg = new DamageDialog({ actor, item, weapons, seed, scope });
-  dlg.render(true);
-  return await dlg.wait();
+/**
+ * Convenience function to open damage dialog
+ * @param {Object} options - Dialog options
+ * @returns {Promise} Dialog result
+ */
+export async function openDamageDialog(options) {
+  const dialog = new DamageDialog(options);
+  dialog.render(true);
+  return await dialog.wait();
 }

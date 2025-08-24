@@ -1,3 +1,6 @@
+{{!-- templates/damage-dialog.hbs --}}
+{{!-- SW5E Helper - Damage Dialog Template with Pack Integration --}}
+
 <form class="sw5e-helper-damage">
 
   {{!-- ================= Header ================= --}}
@@ -21,12 +24,12 @@
       {{/each}}
     </select>
     {{#if weaponLocked}}
-      <span class="note" style="margin-left:.5rem;">{{localize "SW5EHELPER.WeaponAttackBonus"}}</span>
+      <span class="note" style="margin-left:.5rem; opacity: 0.7;">Locked to attack weapon</span>
     {{/if}}
   </section>
 
-  {{!-- ============== Per-weapon Presets (equal spacing; no Load button) ============== --}}
-  <section class="row favorites equal-gap">
+  {{!-- ============== Per-weapon Presets ============== --}}
+  <section class="row favorites">
     <label for="presetName">{{localize "SW5EHELPER.Preset"}}</label>
     <select name="presetName" id="presetName">
       <option value="">{{localize "SW5EHELPER.None"}}</option>
@@ -96,23 +99,27 @@
     </table>
   </section>
 
-  {{!-- =============== Additional Damage (FIXED: prevent collapse) =============== --}}
+  {{!-- =============== Additional Damage =============== --}}
   <details class="row extras" {{#if extraRows.length}}open{{/if}}>
     <summary>{{localize "SW5EHELPER.ExtraModsDmg"}}</summary>
 
     <div class="extra-list">
       {{#each extraRows}}
         <div class="extra-row modrow" data-id="{{this.id}}">
-          <input type="text" class="mod-formula" name="extra.{{this.id}}.formula" value="{{this.formula}}" placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}" style="width:10rem;">
-          <select class="mod-type" name="extra.{{this.id}}.type">
+          <input type="text" class="mod-formula" name="extra.{{this.id}}.formula" value="{{this.formula}}" placeholder="{{localize 'SW5EHELPER.ExtraModsDmgPH'}}" style="flex: 1 1 200px;">
+          
+          <select class="mod-type" name="extra.{{this.id}}.type" style="min-width: 100px;">
             {{#each ../damageTypes}}
               <option value="{{this.value}}" {{#if (eq ../this.type this.value)}}selected{{/if}}>{{this.label}}</option>
             {{/each}}
           </select>
-          <label class="chk" title="{{localize 'SW5EHELPER.IncludeInCrit'}}">
-            <input type="checkbox" class="mod-incrit" name="extra.{{this.id}}.inCrit" {{#if this.inCrit}}checked{{/if}}> {{localize "SW5EHELPER.IncludeInCrit"}}
+          
+          <label class="chk" style="white-space: nowrap;" title="{{localize 'SW5EHELPER.IncludeInCrit'}}">
+            <input type="checkbox" class="mod-incrit" name="extra.{{this.id}}.inCrit" {{#if this.inCrit}}checked{{/if}}> 
+            {{localize "SW5EHELPER.IncludeInCrit"}}
           </label>
-          <button type="button" class="btn warn" data-action="del-row">{{localize "SW5EHELPER.Delete"}}</button>
+          
+          <button type="button" class="btn warn" data-action="del-row" data-id="{{this.id}}" title="Remove this damage modifier">×</button>
         </div>
       {{/each}}
     </div>
@@ -122,17 +129,66 @@
     </div>
   </details>
 
-  {{!-- =============== Global =============== --}}
+  {{!-- =============== Class Features (collapsible) =============== --}}
+  <details class="row features">
+    <summary>{{localize "SW5EHELPER.ClassFeatures"}}</summary>
+    <div class="row">
+      {{!-- =============== PACK INTEGRATION - DAMAGE FEATURES =============== --}}
+      {{!-- Dynamic pack damage features rendered here --}}
+      {{{packDamageHTML}}}
+      
+      {{#unless packDamageHTML}}
+        <em>{{localize "SW5EHELPER.NoFeatures"}}</em>
+      {{/unless}}
+    </div>
+  </details>
+
+  {{!-- =============== Advanced Options =============== --}}
+  <details class="row advanced-options">
+    <summary>Advanced Options</summary>
+    
+    <div class="row">
+      <label class="chk">
+        <input type="checkbox" name="useMinDie" {{#if useMinDie}}checked{{/if}}>
+        {{localize "SW5EHELPER.UseMinDie"}}
+      </label>
+      <span class="help-text" title="{{localize 'SW5EHELPER.UseMinDieHelp'}}">ⓘ</span>
+    </div>
+    
+    <div class="row">
+      <label class="chk">
+        <input type="checkbox" name="otpDamageAdv" {{#if otpDamageAdv}}checked{{/if}}>
+        {{localize "SW5EHELPER.DmgAdv"}}
+      </label>
+      <span class="note">{{localize "SW5EHELPER.OncePerTurn"}}</span>
+    </div>
+    
+    <div class="row">
+      <label class="chk">
+        <input type="checkbox" name="otpDamageDis" {{#if otpDamageDis}}checked{{/if}}>
+        {{localize "SW5EHELPER.DmgDis"}}
+      </label>
+      <span class="note">{{localize "SW5EHELPER.OncePerTurn"}}</span>
+    </div>
+  </details>
+
+  {{!-- =============== Global Settings =============== --}}
   <section class="row toggles">
-    <label class="chk"><input type="checkbox" name="isCrit" {{#if isCrit}}checked{{/if}}> {{localize "SW5EHELPER.Crit"}}</label>
+    <label class="chk">
+      <input type="checkbox" name="isCrit" {{#if isCrit}}checked{{/if}}> 
+      {{localize "SW5EHELPER.Crit"}}
+    </label>
 
     {{#if showBrutal}}
-      <span class="note brutal" style="margin-left:.75rem;">Brutal: {{brutalXdY}}</span>
+      <span class="note brutal" style="margin-left:.75rem;">
+        Brutal: {{brutalXdY}}
+      </span>
     {{/if}}
 
     <label class="chk" style="margin-left:auto;">
       <input type="checkbox" name="separate" {{#if separate}}checked{{/if}}>
       {{localize "SW5EHELPER.SeparatePerTargetDmg"}}
+      <span class="note">{{localize "SW5EHELPER.SeparatePerTargetNote"}}</span>
     </label>
   </section>
 
@@ -143,3 +199,54 @@
   </footer>
 
 </form>
+
+{{!-- Additional CSS for improved layout --}}
+<style>
+.sw5e-helper-damage .extra-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+  padding: 0.25rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  background: rgba(0,0,0,0.05);
+}
+
+.sw5e-helper-damage .extra-row input[type="text"] {
+  flex: 1 1 200px;
+  min-width: 150px;
+}
+
+.sw5e-helper-damage .extra-row select {
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+.sw5e-helper-damage .extra-row .chk {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.sw5e-helper-damage .extra-row button {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 50%;
+}
+
+.sw5e-helper-damage .help-text {
+  margin-left: 0.5rem;
+  cursor: help;
+  opacity: 0.7;
+}
+
+.sw5e-helper-damage .note {
+  font-size: 0.9em;
+  opacity: 0.7;
+  margin-left: 0.5rem;
+}
+</style>

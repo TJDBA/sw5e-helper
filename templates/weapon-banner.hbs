@@ -1,0 +1,77 @@
+{{!-- templates/partials/weapon-banner.hbs --}}
+{{!-- Reusable weapon banner component --}}
+<div class="weapon-banner">
+  <img src="{{weaponImg}}" alt="Weapon" class="weapon-icon" />
+  <div class="weapon-title">
+    <span class="name">{{weaponName}}</span>
+    {{#if attackInfoIcon}}
+      <span class="info-icon" data-action="show-attack-formula" title="{{localize 'SW5EHELPER.AttackFormulaTooltip'}}">ⓘ</span>
+    {{/if}}
+  </div>
+</div>
+
+{{!-- templates/partials/target-row.hbs --}}
+{{!-- Individual target row component --}}
+<details class="target-row{{#if missing}} missing{{/if}}{{#if alternatingClass}} {{alternatingClass}}{{/if}}" 
+         data-target-ref="{{ref}}" {{#if expanded}}open{{/if}}>
+  <summary>
+    <span class="expand-arrow">▶</span>
+    <img class="portrait" src="{{img}}" />
+    <span class="tname" data-action="{{nameAction}}" data-target-ref="{{ref}}">{{name}}</span>
+    
+    {{#if saveOnly}}
+      <span class="save-summary">
+        {{saveDisplay}}
+      </span>
+    {{else if isManualDamage}}
+      <span class="damage-summary">{{damageDisplay}}</span>
+    {{else}}
+      <span class="attack-total">{{attackDisplay}} <span class="status-icon {{statusClass}}" title="{{statusText}}">{{statusIcon}}</span></span>
+      <span class="damage-summary">{{damageDisplay}}</span>
+    {{/if}}
+    
+    <span class="row-actions">
+      {{#if summaryActions}}{{{summaryActions}}}{{/if}}
+      {{#if missing}}<span class="missing">[{{localize "SW5EHELPER.Missing"}}]</span>{{/if}}
+    </span>
+  </summary>
+  
+  <div class="row-body">
+    {{#if saveLine}}{{{saveLine}}}{{/if}}
+    {{#if damageLine}}{{{damageLine}}}{{/if}}
+  </div>
+</details>
+
+{{!-- templates/partials/damage-controls.hbs --}}
+{{!-- Damage application controls --}}
+{{#unless applied}}
+  <span class="icons">
+    {{#unless isManualDamage}}
+      <a class="icon-btn" data-action="row-mod-damage" data-target-ref="{{ref}}" 
+         title="{{localize 'SW5EHELPER.ModDamage'}}" aria-label="{{localize 'SW5EHELPER.ModDamage'}}">🎲</a>
+    {{/unless}}
+    <a class="icon-btn" data-action="apply-full" data-target-ref="{{ref}}" 
+       title="{{localize 'SW5EHELPER.ApplyFull'}}" aria-label="{{localize 'SW5EHELPER.ApplyFull'}}">💯</a>
+    <a class="icon-btn" data-action="apply-half" data-target-ref="{{ref}}" 
+       title="{{localize 'SW5EHELPER.ApplyHalf'}}" aria-label="{{localize 'SW5EHELPER.ApplyHalf'}}">½</a>
+    <a class="icon-btn" data-action="apply-none" data-target-ref="{{ref}}" 
+       title="{{localize 'SW5EHELPER.ApplyNone'}}" aria-label="{{localize 'SW5EHELPER.ApplyNone'}}">Ø</a>
+  </span>
+{{/unless}}
+
+{{!-- templates/partials/pack-feature.hbs --}}
+{{!-- Individual pack feature component --}}
+<div class="pack-feature" data-pack-id="{{packId}}">
+  {{{featureHTML}}}
+</div>
+
+{{!-- templates/partials/gm-toolbar.hbs --}}
+{{!-- GM-only toolbar controls --}}
+{{#if isGM}}
+  <div class="gm-toolbar">
+    {{#unless hideRollAllSaves}}
+      <a class="mini-btn" data-action="gm-roll-all-saves">{{localize "SW5EHELPER.RollAllSaves"}}</a>
+    {{/unless}}
+    <a class="mini-btn" data-action="gm-apply-all-full">{{localize "SW5EHELPER.ApplyAllFull"}}</a>
+  </div>
+{{/if}}

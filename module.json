@@ -11,13 +11,12 @@
   },
   "authors": [
     {
-      "name": [{"name": "YourName"}]
+      "name": [{"name": "TJDBA"}]
     }
   ],
   "esmodules": [
     "scripts/register.js",
-    "scripts/api.js",
-    "scripts/core/chat/card-handlers.js"
+    "scripts/main.js"
   ],
    "styles": ["styles/helper.css"],
   "languages": [

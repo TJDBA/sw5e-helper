@@ -1,3 +1,6 @@
+{{!-- templates/attack-dialog.hbs --}}
+{{!-- SW5E Helper - Attack Dialog Template with Pack Integration --}}
+
 <form class="sw5e-helper-attack">
 
   {{!-- ================= Header ================= --}}
@@ -22,9 +25,8 @@
     </select>
   </section>
 
-  {{!-- ============== Per-weapon Favorites ============== --}}
+  {{!-- ============== Per-weapon Presets ============== --}}
   <section class="row favorites">
-    
     <label for="presetName" style="margin-left:.5rem">{{localize "SW5EHELPER.Preset"}}</label>
     <select name="presetName" id="presetName">
       <option value="">{{localize "SW5EHELPER.None"}}</option>
@@ -79,8 +81,7 @@
            value="{{atkMods}}">
   </section>
 
-  {{!-- ======= Smart Weapon Override (dynamic visibility via JS) ======= --}}
-  {{!-- Show this block when selected item has system.properties.smr --}}
+  {{!-- ======= Smart Weapon Override (dynamic visibility) ======= --}}
   {{#if showSmart}}
   <section class="row smart">
     <label class="chk">
@@ -89,7 +90,7 @@
     </label>
   </section>
 
-  <section class="row smart2"></section>
+  <section class="row smart2">
     <label for="smartAbility" style="margin-left: .5rem">{{localize "SW5EHELPER.SmartAbility"}}</label>
     <input type="number" id="smartAbility" name="smartAbility" value="{{smartAbility}}" style="width:4.2rem;">
 
@@ -127,13 +128,13 @@
       <label for="saveDcFormula" style="margin-left:.5rem">{{localize "SW5EHELPER.SaveDCFormula"}}</label>
       <input type="text" id="saveDcFormula" name="saveDcFormula" value="{{saveDcFormula}}" placeholder="8 + @prof + @mod">
     </div>
-    
   </details>
 
   {{!-- =============== Class Features (collapsible) =============== --}}
   <details class="row features">
     <summary>{{localize "SW5EHELPER.ClassFeatures"}}</summary>
     <div class="row">
+      {{!-- Legacy system features (if any) --}}
       {{#if features.length}}
         {{#each features}}
           <label class="chk" title="{{this.source}}">
@@ -141,9 +142,15 @@
             {{this.name}} — {{this.source}}
           </label>
         {{/each}}
-      {{else}}
-        <em>{{localize "SW5EHELPER.NoFeatures"}}</em>
       {{/if}}
+      
+      {{!-- =============== PACK INTEGRATION - ATTACK FEATURES =============== --}}
+      {{!-- Dynamic pack attack features rendered here --}}
+      {{{packFeaturesHTML}}}
+      
+      {{#unless features.length}}{{#unless packFeaturesHTML}}
+        <em>{{localize "SW5EHELPER.NoFeatures"}}</em>
+      {{/unless}}{{/unless}}
     </div>
   </details>
 
