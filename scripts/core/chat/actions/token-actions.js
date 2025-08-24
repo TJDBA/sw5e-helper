@@ -2,7 +2,7 @@
 // SW5E Helper - Token Action Handlers  
 // Handles token ping/select interactions
 
-import { BaseCardAction } from "./index.js";
+import { BaseCardAction } from "./BaseCardAction.js";
 
 /**
  * Ping a token on the canvas

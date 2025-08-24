@@ -2,7 +2,7 @@
 // SW5E Helper - UI Action Handlers
 // Handles UI state changes like expand/collapse
 
-import { BaseCardAction } from "./index.js";
+import { BaseCardAction } from "./BaseCardAction.js";
 
 /**
  * Toggle expand/collapse all target rows

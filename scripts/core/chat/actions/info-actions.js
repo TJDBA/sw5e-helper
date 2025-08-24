@@ -2,7 +2,7 @@
 // SW5E Helper - Info Action Handlers
 // Handles tooltip/info display actions
 
-import { BaseCardAction } from "./index.js";
+import { BaseCardAction } from "./BaseCardAction.js";
 
 /**
  * Show attack formula breakdown as notification

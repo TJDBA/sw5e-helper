@@ -2,7 +2,7 @@
 // SW5E Helper - Damage Action Handlers
 // Handles damage rolling actions (quick, modified)
 
-import { BaseCardAction } from "./index.js";
+import { BaseCardAction } from "./BaseCardAction.js";
 import { ConfigHelper } from "../../config.js";
 import { rollDamageForTargets } from "../../engine/damage.js";
 import { DamageDialog } from "../../../ui/DamageDialog.js";

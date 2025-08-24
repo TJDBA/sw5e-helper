@@ -2,7 +2,7 @@
 // SW5E Helper - Apply Damage Action Handlers
 // Handles damage application to actors
 
-import { BaseCardAction } from "./index.js";
+import { BaseCardAction } from "./BaseCardAction.js";
 import { ConfigHelper, SW5E_CONFIG } from "../../config.js";
 import { applyDamage } from "../../engine/apply-damage.js";
 

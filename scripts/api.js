@@ -51,9 +51,9 @@ export const API = {
       if (!weapons.length) { ui.notifications.warn("SW5E Helper: No equipped weapons."); return; }
 
       // (Optional) sanity check template path
-      const mod = game.modules.get(MOD);
-      const tpl = `modules/${MOD}/templates/attack-dialog.hbs`;
-      await fetch(tpl).then(r => { if (!r.ok) throw new Error(`Template fetch failed: ${r.status} ${r.statusText}`); r.text(); });
+      //const mod = game.modules.get(MOD);
+      //const tpl = `modules/${MOD}/templates/attack-dialog.hbs`;
+      //await fetch(tpl).then(r => { if (!r.ok) throw new Error(`Template fetch failed: ${r.status} ${r.statusText}`); r.text(); });
 
       // Open dialog
       const sel = await openAttackDialog({ actor, weapons, seed });

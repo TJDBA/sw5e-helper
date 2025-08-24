@@ -2,7 +2,7 @@
 // SW5E Helper - Save Action Handlers
 // Handles saving throw rolling actions
 
-import { BaseCardAction } from "./index.js";
+import { BaseCardAction } from "./BaseCardAction.js";
 import { ConfigHelper } from "../../config.js";
 
 /**

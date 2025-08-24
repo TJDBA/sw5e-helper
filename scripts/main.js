@@ -1,4 +1,37 @@
+/*
+console.log("SW5E Helper main.js executing");
+
+import { SW5E_CONFIG, ConfigHelper } from "./core/config.js";
+import { PackRegistry } from "./packs/pack-registry.js";
+import { API } from "./api.js";
+//import "./core/chat/actions/card-handlers.js";
+
+Hooks.once("init", async () => {
+  console.log("SW5E Helper | init hook fired");
+
+  // --- THIS IS THE FIX ---
+  // We wait until the 'init' hook to dynamically load the card handlers.
+  // This breaks the circular dependency loop that was crashing the module.
+  try {
+    const { initializeCardHandlers } = await import("./core/chat/actions/card-handlers.js");
+    initializeCardHandlers();
+    console.log("SW5E Helper | Card handlers initialized successfully.");
+  } catch (e) {
+    console.error("SW5E Helper | Failed to initialize card handlers!", e);
+  }
+});
+
+Hooks.once("ready", () => {
+  console.log("SW5E Helper ready hook fired");
+  const module = game.modules.get("sw5e-helper");
+  if (module) {
+    module.api = { test: "working" };
+    console.log("SW5E Helper API exposed");
+  }
+}); */
+
 // scripts/main.js
+console.log("SW5E Helper main.js loading...");
 // SW5E Helper - Main Module Entry Point
 // Simplified initialization with pack system support
 
@@ -7,16 +40,14 @@ import { PackRegistry } from "./packs/pack-registry.js";
 import { API } from "./api.js";
 import "./core/chat/actions/card-handlers.js";
 
-
 // Import feature-based packs (one per feature, reusable across classes)
 import "./packs/combat-superiority.js";
 import "./packs/force-empowered-strikes.js";
 import "./packs/aura-of-hatred.js";
 // import "./packs/sneak-attack.js";
-// import "./packs/rage.js";
-// import "./packs/spell-sniper.js";
 
-/* ----------------------------- Module Initialization ----------------------------- */
+
+/* ----------------------------- Module Initialization ----------------------------- */ 
 
 Hooks.once("init", async () => {
   ConfigHelper.debug("init", "SW5E Helper initializing...");
@@ -42,12 +73,18 @@ Hooks.once("init", async () => {
   // Expose API on module
   const module = game.modules.get(SW5E_CONFIG.MODULE.ID);
   if (module) {
-    module.api = {
-      ...API,
-      PackRegistry,
-      ConfigHelper,
-      SW5E_CONFIG
-    };
+    try {
+      module.api = {
+        ...API,
+        PackRegistry,
+        ConfigHelper,
+        SW5E_CONFIG
+      };
+      console.log("SW5E Helper: API exposed successfully");
+    } catch (error) {
+      console.error("SW5E Helper: Error exposing API", error);
+      module.api = { error: error.message };
+    }
     
     // Make pack registration globally accessible for external packs
     globalThis.SW5EHelper = {
@@ -189,3 +226,5 @@ if (SW5E_CONFIG.DEBUG.ENABLED) {
 }
 
 export { API };
+
+/**/

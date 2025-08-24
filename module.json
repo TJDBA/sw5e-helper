@@ -3,15 +3,15 @@
   "title": "SW5E Helper Macros",
   "description": "Lightweight attack & damage dialogs with a plugin seam for classes/feats.",
   "version": "0.2.0",
-  "manifest": "https://raw.githubusercontent.com/TJDBA/sw5e-helper/refs/tags/v0.2.0/module.json",
-  "download": "https://github.com/TJDBA/sw5e-helper/archive/refs/tags/v0.2.0.zip",
+  "manifest": "https://raw.githubusercontent.com/TJDBA/sw5e-helper/refs/tags/v0.1.0/module.json",
+  "download": "https://github.com/TJDBA/sw5e-helper/archive/refs/tags/v0.1.0.zip",
   "compatibility": {
     "minimum": "11",
-    "verified": "11"
+    "verified": "12"
   },
   "authors": [
     {
-      "name": [{"name": "TJDBA"}]
+      "name": [{"name": "YourName"}]
     }
   ],
   "esmodules": [
