@@ -10,14 +10,14 @@ import { BaseCardAction } from "./BaseCardAction.js";
 export class PingTokenAction extends BaseCardAction {
   async execute(message, state, context) {
     const { ref } = context;
-    const { scene, token } = this.resolveToken(ref);
-    
-    if (token?.object && canvas?.ping) {
-      canvas.ping(token.object.center, { 
+    const { token,canvas } = this.resolveToken(ref);
+    //console.log("canvas, token", { canvas, token });
+    if (token != null && canvas != null) {
+      canvas.ping(token.center); /*, { 
         scene, 
         duration: 800, 
         color: "#ff6400" 
-      });
+      });   */
     }
   }
 }
@@ -29,15 +29,16 @@ export class SelectTokenAction extends BaseCardAction {
   async execute(message, state, context) {
     const { ref } = context;
     const { token } = this.resolveToken(ref);
-    
-    if (token?.object) {
-      token.object.control({ releaseOthers: true });
+    console.log("SW5E HELPER select token:", token);
+    if (token != null) {
+      token.control({ releaseOthers: true });
     }
   }
 
   canExecute(message, state, context) {
     const { ref } = context;
     const target = this.getTargetRow(state, ref);
-    return this.canControlTarget(target);
+    console.log("SW5E HELPER canExecute-target:", target);
+    return this.canControlTarget(target, ref);
   }
 }

@@ -137,23 +137,28 @@ getWeapon(state) {
    */
   resolveToken(ref) {
     if (!ref) return { scene: null, token: null, actor: null };
-    
+   
     const [sceneId, tokenId] = ref.split(":");
     const scene = game.scenes?.get(sceneId) || canvas?.scene;
-    const token = scene?.tokens?.get(tokenId);
+    const token = canvas?.tokens?.get(tokenId);
     const actor = token?.actor || null;
-    
-    return { scene, token, actor };
+     
+    return { scene, token, actor, canvas };
   }
 
   /**
    * Check if current user can control a target
    * @param {Object} target - Target row data
+   * @param {string} ref
    * @returns {boolean} True if user can control
    */
-  canControlTarget(target) {
+  canControlTarget(target,ref) {
     try {
-      const actor = target._actor || game.actors?.get(target.actorId);
+      // As a GM, you can always control.
+      if (game.user?.isGM) return true;
+
+      const { token,canvas } = resolveToken(ref);
+      const actor = canvas.tokens?.get(token.actorId);
       if (!actor) return false;
       
       return game.user?.isGM || 

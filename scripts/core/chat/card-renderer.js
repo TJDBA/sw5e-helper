@@ -139,15 +139,18 @@ export function renderAttackCard(state) {
       </div>
     `;
 
-    const canControl = _userCanRow(t._actor);
-    const nameAction = canControl ? "select-token" : "ping-token";
+    const canControl = _userCanRow(t._actor) || game.user?.isGM;
+    const nameAction = "ping-token";
+    const pictureAction = canControl ? "select-token" : "ping-token";
     const alternatingClass = index % 2 === 0 ? " even" : " odd";
+
+          console.log('SW5E HELPER canControl', t._actor, _userCanRow(t._actor), game.user?.isGM);
 
     return `
       <details class="target-row${t.missing ? " missing" : ""}${alternatingClass}" data-target-ref="${ref}" ${state.ui?.expandedAll ? "open" : ""}>
         <summary>
           <span class="expand-arrow">▶</span>
-          <img class="portrait" src="${t.img}" />
+          <img class="portrait" src="${t.img}" data-action="${pictureAction}" data-target-ref="${ref}" />
           <span class="tname" data-action="${nameAction}" data-target-ref="${ref}">${t.name}</span>
           ${(saveOnly && !isManualDamage)
             ? `<span class="save-summary">
