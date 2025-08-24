@@ -70,7 +70,18 @@ export class BaseDialog extends Application {
     this._presets = await listPresets(this.context.actor, this.dialogType);
 
     // Get selected weapon info
-    const weaponsAll = this.context.weapons ?? [];
+    let weaponsAll = this.context.weapons ?? [];
+
+    // If the weapons list is empty but a single item was passed,
+    // build the list from that item. This makes the dialog robust.
+    if (!weaponsAll.length && this.context.item) {
+      weaponsAll = [{ 
+        id: this.context.item.id, 
+        name: this.context.item.name,
+        item: this.context.item 
+      }];
+    }
+
     const selected = weaponsAll.find(w => w.id === this.state.weaponId) ?? weaponsAll[0];
     //const selectedId = selected?.id ?? "";
     const selectedId = selected?.id ?? this.state.weaponId ?? "";
