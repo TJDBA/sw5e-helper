@@ -72,9 +72,12 @@ export class BaseDialog extends Application {
     // Get selected weapon info
     const weaponsAll = this.context.weapons ?? [];
     const selected = weaponsAll.find(w => w.id === this.state.weaponId) ?? weaponsAll[0];
-    const selectedId = selected?.id ?? "";
-    const item = selected?.item ?? this.context.actor?.items?.get?.(selectedId);
+    //const selectedId = selected?.id ?? "";
+    const selectedId = selected?.id ?? this.state.weaponId ?? "";
 
+    // THE FIX: Prioritize the directly passed 'this.context.item' before trying to find it.
+    const item = this.context.item ?? selected?.item ?? this.context.actor?.items?.get?.(selectedId);
+    
     // Get pack-contributed HTML
     const packFeaturesHTML = PackRegistry.renderAttackFeatures(this.context.actor, item, this.state);
     const packDamageHTML = PackRegistry.renderDamageFeatures(this.context.actor, item, this.state);

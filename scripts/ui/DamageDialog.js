@@ -23,10 +23,19 @@ export class DamageDialog extends BaseDialog {
     this.options.classes.push(SW5E_CONFIG.CSS_CLASSES.DIALOG_DAMAGE);
     this.options.width = 560;
     
-    // Resolve item from weapons if not provided directly
-    if (!this.context.item && weapons?.length) {
-      const selectedId = this.state.weaponId || weapons[0]?.id;
-      this.context.item = actor?.items?.get?.(selectedId);
+    // Also resolve when callers pass an ID (or when only seed.weaponId is set)
+    if (!this.context.item) {
+      const idLike =
+        (options?.item && (typeof options.item === "string" || typeof options.item === "number")
+          ? String(options.item)
+          : null)
+        ?? (this.state?.weaponId ? String(this.state.weaponId) : null);
+      if (idLike) {
+        this.context.item =
+          actor?.items?.get?.(idLike) ??
+          game.items?.get?.(idLike) ??
+          null;
+      }
     }
   }
 

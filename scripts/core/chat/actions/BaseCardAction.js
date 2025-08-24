@@ -98,15 +98,37 @@ export class BaseCardAction {
     return game.actors?.get(state.actorId) || null;
   }
 
-  /**
+  /*
    * Get weapon item from state
    * @param {Object} state - Card state
    * @returns {Item|null} Item or null
-   */
+   
   getWeapon(state) {
     const actor = this.getActor(state);
     return actor?.items?.get(state.itemId) || null;
-  }
+  }*/
+  /**
+ * Return a real Item for damage workflows.
+ * Accepts Item or id in state.item | state.weapon | state.itemId | state.weaponId.
+ */
+getWeapon(state) {
+  const actor = this.getActor(state);
+
+  const candidate =
+    state?.item ??
+    state?.weapon ??
+    state?.itemId ??
+    state?.weaponId;
+
+  if (!candidate) return null;
+
+  // Already an Item document
+  if (candidate?.documentName === "Item" || candidate?.type) return candidate;
+
+  // Resolve id → Item (prefer owned item)
+  const id = String(candidate);
+  return actor?.items?.get?.(id) ?? game.items?.get?.(id) ?? null;
+}
 
   /**
    * Resolve token from scene:token reference

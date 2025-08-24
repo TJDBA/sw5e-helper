@@ -5,7 +5,7 @@
 import { BaseCardAction } from "./BaseCardAction.js";
 import { ConfigHelper } from "../../config.js";
 import { rollDamageForTargets } from "../../engine/damage.js";
-import { DamageDialog } from "../../../ui/DamageDialog.js";
+import { openDamageDialog } from "../../../ui/DamageDialog.js";
 import { PackRegistry } from "../../../packs/pack-registry.js";
 
 /**
@@ -149,46 +149,44 @@ export class ModDamageAction extends BaseCardAction {
   }
 
   async openDamageDialog(message, state, targets, options = {}) {
-    const actor = this.getActor(state);
-    const weapon = this.getWeapon(state);
-    
-    if (!actor || !weapon) {
-      ui.notifications.error("Cannot resolve actor or weapon");
-      return;
-    }
+  const actor = this.getActor(state);
+  const weapon = this.getWeapon(state);
+  
+  if (!actor || !weapon) {
+    ui.notifications.error("Cannot resolve actor or weapon");
+    return;
+  }
 
-    const hasCrit = targets.some(t => String(t?.summary?.status) === "crit");
-    const seed = {
-      weaponId: state.itemId,
-      ability: state.options?.smart ? "manual" : "",
-      offhand: !!state.options?.offhand,
-      smart: !!state.options?.smart,
-      smartAbility: state.options?.smartAbility || 0,
-      separate: !!options.separate,
-      isCrit: hasCrit && !options.separate,
-      extraRows: [],
-      packState: state.packState || {}
-    };
+  const hasCrit = targets.some(t => String(t?.summary?.status) === "crit");
+  const seed = {
+    weaponId: state.itemId,
+    ability: state.options?.smart ? "manual" : "",
+    offhand: !!state.options?.offhand,
+    smart: !!state.options?.smart,
+    smartAbility: state.options?.smartAbility || 0,
+    separate: !!options.separate,
+    isCrit: hasCrit && !options.separate,
+    extraRows: [],
+    packState: state.packState || {}
+  };
 
-    try {
-      const dialog = new DamageDialog({ 
-        actor, 
-        item: weapon, 
-        seed,
-        scope: options.targetRef ? 
-          { type: "row", ref: options.targetRef } : 
-          { type: "card" }
-      });
-      
-      dialog.render(true);
-      const result = await dialog.wait();
-      
-      if (result) {
-        await this.processDamageDialogResult(message, state, targets, result, options);
-      }
-    } catch (error) {
-      console.error("SW5E Helper: Damage dialog error", error);
+  try {
+    //const dialog = new DamageDialog({ 
+    const result = await openDamageDialog({
+      actor, 
+      item: weapon, 
+      seed,
+      scope: options.targetRef ? 
+        { type: "row", ref: options.targetRef } : 
+        { type: "card" }
+    });
+          
+    if (result) {
+      await this.processDamageDialogResult(message, state, targets, result, options);
     }
+  } catch (error) {
+    console.error("SW5E Helper: Damage dialog error", error);
+  }
   }
 
   async processDamageDialogResult(message, state, targets, result, options) {
