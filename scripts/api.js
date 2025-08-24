@@ -18,7 +18,8 @@ function _freezeTargets() {
     sceneId: t.document?.parent?.id ?? canvas.scene?.id ?? "",
     tokenId: t.id,
     name: t.document?.name ?? t.name ?? "Target",
-    img: t.document?.texture?.src ?? t.document?.texture?.src ?? t.document?.img ?? t.actor?.img ?? ""
+    img: t.document?.texture?.src ?? t.document?.texture?.src ?? t.document?.img ?? t.actor?.img ?? "",
+    _actor: t.actor
   }));
 }
 

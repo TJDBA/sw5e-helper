@@ -229,7 +229,9 @@ function _refOf(t) {
 function _userCanRow(actorLike) {
   try {
     const a = actorLike ?? null;
-    if (!a) return false;
+    
+    if (a == null) return false;
+    
     return game.user?.isGM || a?.isOwner === true || a?.ownership?.[game.userId] >= (CONST.DOCUMENT_PERMISSION_LEVELS?.OWNER ?? 3);
   } catch {
     return game.user?.isGM === true;

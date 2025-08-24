@@ -152,18 +152,16 @@ getWeapon(state) {
    * @param {string} ref
    * @returns {boolean} True if user can control
    */
-  canControlTarget(target,ref) {
+  canControlTarget(target, ref) {
     try {
       // As a GM, you can always control.
       if (game.user?.isGM) return true;
 
-      const { token,canvas } = resolveToken(ref);
-      const actor = canvas.tokens?.get(token.actorId);
-      if (!actor) return false;
-      
-      return game.user?.isGM || 
-             actor.isOwner === true || 
-             (actor.ownership?.[game.userId] >= 3);
+      const { token, canvas } = this.resolveToken(ref);
+      //const actor = canvas.tokens?.get(token.actorId);
+      //if (!actor) return false;
+      console.log("SW5E Helper: canControlTarget token.id", token.id);
+      return game.user?.isGM || canvas.tokens.get(token.id).isOwner;
     } catch {
       return game.user?.isGM === true;
     }
