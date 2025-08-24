@@ -2,7 +2,7 @@
   "id": "sw5e-helper",
   "title": "SW5E Helper Macros",
   "description": "Attack & damage dialogs and custom combined chat card",
-  "version": "1.0.0",
+  "version": "1.0",
   "manifest": "https://raw.githubusercontent.com/TJDBA/sw5e-helper/refs/tags/v1.0/module.json",
   "download": "https://github.com/TJDBA/sw5e-helper/archive/refs/tags/v1.0.zip",
   "compatibility": {
