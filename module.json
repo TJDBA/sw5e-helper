@@ -15,7 +15,6 @@
     }
   ],
   "esmodules": [
-    "scripts/register.js",
     "scripts/main.js"
   ],
    "styles": ["styles/helper.css"],

@@ -6,6 +6,7 @@ import { rollDamageForTargets } from "./core/engine/damage.js";
 import { normalizeActor, listEquippedWeapons, getWeaponById, getItemAttackBonus } from "./core/adapter/sw5e.js";
 import { setLastUsed } from "./core/services/presets.js";
 import { renderAttackCard } from "./core/chat/card-renderer.js";
+import { PackRegistry } from "./packs/pack-registry.js";
 
 const MOD = "sw5e-helper";
 const DEBUG = true; // Debug flag for console logging
