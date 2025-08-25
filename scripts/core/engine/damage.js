@@ -4,7 +4,7 @@ import { getWeaponById } from "../adapter/sw5e.js";
 const signed = n => `${n >= 0 ? "+" : ""}${n}`;
 
 // Feature flip: allow ability mod to damage on off-hand attacks
-const ALLOW_OFFHAND_DAMAGE_MOD = false;
+let ALLOW_OFFHAND_DAMAGE_MOD = false;
 
 /* ----------------------------- helpers ----------------------------- */
 
@@ -55,9 +55,15 @@ function firstDieFaces(formula) {
   return m ? Number(m[2]) : null;
 }
 
-// Build weapon damage formulas (array of strings) and whether they use @mod
+// Build weapon damage formulas (array of strings) and whether they use @mod (needed for ability override)
 function weaponParts(item) {
-  const parts = (item.system?.damage?.parts || []).map(([f]) => String(f));
+  //Make sure the parts array is a string. 
+  const parts = (item.system?.damage?.parts || []).map(
+    ([formula, type]) => [
+      String(formula ?? "0"),
+      String(type ?? "kinetic")
+    ]
+  );
   const usesAtMod = parts.some(f => /@mod\b/.test(f));
   return { parts, usesAtMod };
 }
