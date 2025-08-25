@@ -1,35 +1,3 @@
-/*
-console.log("SW5E Helper main.js executing");
-
-import { SW5E_CONFIG, ConfigHelper } from "./core/config.js";
-import { PackRegistry } from "./packs/pack-registry.js";
-import { API } from "./api.js";
-//import "./core/chat/actions/card-handlers.js";
-
-Hooks.once("init", async () => {
-  console.log("SW5E Helper | init hook fired");
-
-  // --- THIS IS THE FIX ---
-  // We wait until the 'init' hook to dynamically load the card handlers.
-  // This breaks the circular dependency loop that was crashing the module.
-  try {
-    const { initializeCardHandlers } = await import("./core/chat/actions/card-handlers.js");
-    initializeCardHandlers();
-    console.log("SW5E Helper | Card handlers initialized successfully.");
-  } catch (e) {
-    console.error("SW5E Helper | Failed to initialize card handlers!", e);
-  }
-});
-
-Hooks.once("ready", () => {
-  console.log("SW5E Helper ready hook fired");
-  const module = game.modules.get("sw5e-helper");
-  if (module) {
-    module.api = { test: "working" };
-    console.log("SW5E Helper API exposed");
-  }
-}); */
-
 // scripts/main.js
 console.log("SW5E Helper main.js loading...");
 // SW5E Helper - Main Module Entry Point
@@ -38,6 +6,7 @@ console.log("SW5E Helper main.js loading...");
 import { SW5E_CONFIG, ConfigHelper } from "./core/config.js";
 import { PackRegistry } from "./packs/pack-registry.js";
 import { API } from "./api.js";
+import { registerSw5eColorsets } from "./core/integrations/dicesonice.js";
 import "./core/chat/actions/card-handlers.js";
 
 // Import feature-based packs (one per feature, reusable across classes)
@@ -111,6 +80,10 @@ Hooks.once("ready", () => {
   
   // Register any Foundry-specific integrations
   registerFoundryIntegrations();
+});
+
+Hooks.once("diceSoNiceReady", (dice3d) => {
+  registerSw5eColorsets();
 });
 
 /* ----------------------------- Foundry Integrations ----------------------------- */
