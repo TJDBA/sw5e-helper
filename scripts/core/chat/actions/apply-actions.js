@@ -73,9 +73,11 @@ export class ApplyDamageAction extends BaseCardAction {
   canExecute(message, state, context) {
     const { ref } = context;
     const target = this.getTargetRow(state, ref);
-    
+    if (!ref) return false; 
+    if (!target) return false;
+    return game.user?.isGM || this.canControlTarget(target, ref);
     // Can apply if user is GM or owns the target
-    return game.user?.isGM || this.canControlTarget(target);
+    //return game.user?.isGM || this.canControlTarget(target);
   }
 }
 

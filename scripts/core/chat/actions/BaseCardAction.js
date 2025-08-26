@@ -157,13 +157,18 @@ getWeapon(state) {
       // As a GM, you can always control.
       if (game.user?.isGM) return true;
 
-      const { token, canvas } = this.resolveToken(ref);
+      const { token } = this.resolveToken(ref);
+      const t = typeof token === "string" ? canvas.tokens.get(token) : token;
+      if (!t) return false;
+      console.log("SW5E Helper: canControlTarget token.id", t.id);
+       return t.isOwner || t.actor?.isOwner;
       //const actor = canvas.tokens?.get(token.actorId);
       //if (!actor) return false;
-      console.log("SW5E Helper: canControlTarget token.id", token.id);
-      return game.user?.isGM || canvas.tokens.get(token.id).isOwner;
+      //console.log("SW5E Helper: canControlTarget token.id", token.id);
+      //return game.user?.isGM || canvas.tokens.get(token.id).isOwner;
     } catch {
-      return game.user?.isGM === true;
+      console.debug("canControlTarget error:", e);
+      return false;
     }
   }
 }
