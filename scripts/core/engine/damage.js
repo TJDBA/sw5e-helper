@@ -57,13 +57,7 @@ function firstDieFaces(formula) {
 
 // Build weapon damage formulas (array of strings) and whether they use @mod (needed for ability override)
 function weaponParts(item) {
-  //Make sure the parts array is a string. 
-  const parts = (item.system?.damage?.parts || []).map(
-    ([formula, type]) => [
-      String(formula ?? "0"),
-      String(type ?? "kinetic")
-    ]
-  );
+  const parts = (item.system?.damage?.parts || []).map(([f]) => String(f));
   const usesAtMod = parts.some(f => /@mod\b/.test(f));
   return { parts, usesAtMod };
 }
