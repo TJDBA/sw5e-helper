@@ -27,21 +27,14 @@ function deriveDefaultAbility(item, actor) {
 function weaponParts(item) {
     
     //Make sure the parts array is a string. 
-    const parts = (item.system?.damage?.parts || []).map(
-        ([formula, type ]) => [
-        String(formula ?? "0"),
-        String(type ?? "kinetic")
-        ]
-    );
+    const parts = (item.system?.damage?.parts || []).map( ([f, t]) =>  normalizeDamagePart([f, t, true]) );
 
     // check if @mod is used (allowed only once in weapon) then normalizes the data
-    let tempParts = [];
-    const usesAtMod = parts.some(f => /@mod\b/.test(f));
-    for(const part of parts){
-        tempParts.push( normalizeDamagePart(removeAtMod(part.formula),part.type, true) );
-    };
     
-    return { tempParts, usesAtMod };
+    const usesAtMod = parts.some(f => /@mod\b/.test(f));
+    const cleanedParts = usesAtMod ? parts.map(([f, t, i]) => [removeAtMod(f), t, i]) : parts;
+    
+    return { parts: cleanedParts, usesAtMod };
 }
 
 /**
@@ -61,21 +54,17 @@ function removeAtMod(formula) {
 const MIN_BY_FACES = { 4: 2, 6: 2, 8: 3, 10: 4, 12: 5, 20: 8 };
 
 // Apply per-face minimums, preserving the higher of existing vs table
-function applyMinByFaces(formula) {
-  return String(formula || "").replace(DIE_RE, (_, n, f, min) => {
-    const faces = Number(f);
-    const wanted = MIN_BY_FACES[faces];
-    if (!wanted) return `${n}d${f}${min ? `min${min}` : ""}`;
-    const eff = Math.max(Number(min ?? 0), wanted);
-    return `${n}d${f}min${eff}`;
+function applyMinByFaces(damageParts) {
+  return damageParts.map(([formula, type, inCrit]) => {
+    const modifiedFormula = String(formula).replace(DIE_RE, (_, n, f, min) => {
+      const faces = Number(f);
+      const wanted = MIN_BY_FACES[faces];
+      if (!wanted) return `${n}d${f}${min ? `min${min}` : ""}`;
+      const eff = Math.max(Number(min ?? 0), wanted);
+      return `${n}d${f}min${eff}`;
+    });
+    return [modifiedFormula, type, inCrit];
   });
-}
-
-//Possible redundent as this is calculated and passed in from dmgState from Damage Dialog. 
-// Find first NdF in a formula to determine faces for Brutal
-function firstDieFaces(formula) {
-  const m = [...String(formula || "").matchAll(DIE_RE)][0];
-  return m ? Number(m[2]) : null;
 }
 
 function normalizeDamagePart(part) {
@@ -93,23 +82,24 @@ function normalizeDamagePart(part) {
 }
 
 /**
-* Applies advantage or disadvantage to the dice portions of damage formulas.
-* @param {Array<[string, ...any]>} damageParts - The array of damage parts.
-* @param {boolean} useAdvantage - True for advantage (max), false for disadvantage (min).
-* @returns {Array} The new array of damage parts with modified formulas.
+ * Applies advantage or disadvantage to damage formulas.
+ * NOTE: This function intentionally only modifies damage parts where 'inCrit' is true.
+ * In this system, the 'inCrit' flag signifies that a damage part consists of rollable dice
+ * and is eligible for all forms of modification (criticals, advantage, rerolls, etc.).
+ * Applies advantage or disadvantage to the dice portions of damage formulas.
+ * @param {Array<[string, ...any]>} damageParts - The array of damage parts.
+ * @param {boolean} useAdvantage - True for advantage (max), false for disadvantage (min).
+ * @returns {Array} The new array of damage parts with modified formulas.
 **/
 function applyDamageAdvantage(damagePart, useAdvantage) {
     //const DICE_REGEX = /(\d+d\d+)/gi;
     const func = useAdvantage ? 'max' : 'min';
 
     return damagePart.map(([formula, type, inCrit]) => {
-    // Only modify the formula if the inCrit flag is explicitly true.
-    const modifiedFormula = (inCrit == true)
-        ? formula.replace(formula => `${func}(${formula}, ${formula})`)
-        : formula; // Otherwise, leave the formula unchanged.
-
-    // Return the full part with the potentially modified formula.
-    return [modifiedFormula, type, inCrit];
+        // Only modify the formula if the inCrit flag is explicitly true.
+        const modifiedFormula = (inCrit == true) ? `${func}(${formula}, ${formula})` : formula; // Otherwise, leave the formula unchanged.   
+        // Return the full part with the potentially modified formula.
+        return [modifiedFormula, type, inCrit];
     });
 }
 
@@ -129,9 +119,9 @@ async function createRoll(rollFormula, type) {
     // If the formula is an empty string or "0", treat it as "0". Otherwise, use it as-is.
     const finalFormula = String(rollFormula).trim() || "0";
     // If the type is null or undefined, default it to an empty string.
-    const finalType = type ?? "";
+    const finalType = type ?? undefined;
        
-    const roll = await new Roll(finalFormula).evaluate({async:true});
+    const roll = await new dice3d.Roll(finalFormula).evaluate({async:true});
     
     // Type has to go here for DSN animation and for damage calculation
     roll.terms
@@ -140,7 +130,7 @@ async function createRoll(rollFormula, type) {
     
     //This is for rolls with complex formulas like max(). 
     // Type has to go here for DSN animation
-    if(!(roll.dice.length > 0)){
+    if(roll.dice.length > 0){
         roll.dice.forEach(die => {
             die.options.flavor = finalType;
         });
@@ -152,29 +142,16 @@ async function createRoll(rollFormula, type) {
  * Builds the base and critical roll arrays from a list of damage parts.
  * @param {Array} damageParts - The processed list of damage parts.
  *- `isCrit` flag is for brutal die
- * @returns {Promise<{rollArray: Array, critRollArray: Array}>}
+ * @returns {Promise<{rollArray: Array}>}
  */
-async function buildRollArrays(damageParts, isCrit) {
+async function buildRollArrays(damageParts) {
     let rollArray = [];
-    let critRollArray = [];
 
     for (const [formula, type, inCrit] of damageParts) {
-    const roll = await createRoll(formula, type);
-    if (roll) {
-        rollArray.push(roll);
-        // Crit roll includes base weapon dice (inCrit set to true in ) and extras (inCrit=true)
-        if (inCrit === true) {
-            const critRoll = await createRoll(formula, type);
-            critRollArray.push(critRoll);
-        }
+        const roll = await createRoll(formula, type);
+        if (roll) { rollArray.push(roll); }
     }
-    }
-    // Add brutal dice if a crit occurred.
-    if (isCrit) {
-        critRollArray.push(await createRoll(dmgState.brutalXdY, dmgState.brutalDamType));
-    }
-
-  return { rollArray, critRollArray };
+  return { rollArray };
 }
 
 /**
@@ -234,20 +211,6 @@ function damageCalc(rollArray, critRollArray, isCrit, ref) {
         return { total, byType };
     };
 
-    /**
-     * Helper to merge two damage-by-type objects.
-     * @param {object} base - The base damage map.
-     * @param {object} extra - The extra damage map.
-     * @returns {object}
-     */
-    const _mergeTypes = (base, extra) => {
-    const merged = { ...base };
-    for (const type in extra) {
-        merged[type] = (merged[type] || 0) + extra[type];
-    }
-        return merged;
-    };
-
     // 1. Calculate the totals for the base and crit parts separately.
     const baseDamage = _sumRolls(rollArray);
     const critDamage = isCrit ? _sumRolls(critRollArray) : { total: 0, byType: {} };
@@ -269,19 +232,83 @@ function damageCalc(rollArray, critRollArray, isCrit, ref) {
     };
 }
 
+/**
+ * Processes damage parts into separate pools for base and extra critical damage.
+ * @param {Array<[string, string, boolean]>} damageParts - The input array of damage parts.
+ * @param {boolean} hasCrit - Whether a critical hit occurred (for adding brutal dice).
+ * @param {string} brutalFormula - The brutal dice formula (e.g., "1d8").
+ * @param {string} brutalType - The damage type for brutal dice.
+ * @returns {DamagePools} An object containing the base and crit damage pools.
+ */
+function buildDamagePools(damageParts, hasCrit, brutalFormula, brutalType) {
+    const basePool = [];
+    const critPool = [];
+
+    // 1. One pass to process all parts.
+    for (const [formula, type, inCrit] of damageParts) {
+        const terms = formula.split('+').map(term => term.trim());
+
+    for (const term of terms) {
+        if (term === "") continue; // Skip empty terms from bad formulas like "1d8 + ".
+
+        // All terms go into the base damage pool.
+        basePool.push([term, type, inCrit]);
+
+        // Only dice terms from eligible parts go into the EXTRA crit pool.
+        // `isNaN(term)` is true for "1d8", "max(1d6,1d6)", etc. It's false for "5".
+        if ( inCrit  && isNaN(term) ) {
+            critPool.push([term, type, inCrit]);
+        }
+    }
+    }
+
+    // 2. Add brutal dice to the crit pool if a crit occurred.
+    if (hasCrit && brutalFormula) {
+        critPool.push([brutalFormula, brutalType, true]);
+    }
+
+    // 3. Return the final, separated pools.
+    return { basePool, critPool };
+}
+
 /* ----------------------------- MAIN ENGINE ----------------------------- */
 
 export async function rollDamageForTargets({ actor, item, dmgState, targetRefs = [], critMap = {} }, separate = false) {
 
+    /**
+     * Determines the correct ability key based on a priority list.
+     * Priority: User Override > Item Setting > Derived Default
+     * @param {object} dmgState - The dialog state.
+     *- The dmgState.ability is the user override from the dialog
+    * @param {object} item - The weapon item.
+    * @param {object} actor - The actor.
+    * @returns {string} The final ability key ('str', 'dex', etc.).
+    */
+    function _getAbilityKey(dmgState, item, actor) {
+        // 1. Highest priority: The user's override from the dialog.
+        if (dmgState.ability) { return dmgState.ability; }
+
+        // 2. Second priority: The item's specific setting.
+        // If it's anything other than 'default' (e.g., 'str', 'con', 'none'), use it.
+        const itemAbility = item?.system?.ability;
+        if (itemAbility && itemAbility !== 'default') { return itemAbility; }
+
+        // 3. Lowest priority: The item is set to 'default' or has no setting, so derive it.
+        return deriveDefaultAbility(item, actor);
+    }
+
+
     // 1. Gather all damage parts into a structured array.
-    let damageParts = weaponParts(item); // e.g., [['1d10', 'energy']]
+    const { parts: baseWeaponParts, usesAtMod } = weaponParts(item);
+    let damageParts = [...baseWeaponParts];
     
     // Get weapon's primary damage type, default kinetic
     const primaryType = damageParts[0]?.[1] || "kinetic";
     
-    // 2. Add ability modifier (if not already handled by @mod).
-    if (!damageParts.usesAtMod) {
-      const abilityKey = dmgState.ability || item?.system?.ability || deriveDefaultAbility(item);
+    // 2. Add ability modifier
+    if (usesAtMod) {
+      const abilityKey = _getAbilityKey(dmgState, item, actor);
+      
       let abilityMod = dmgState.smart ? Number(dmgState.smartAbility ?? 0)
                                       : Number(foundry.utils.getProperty(actor, `system.abilities.${abilityKey}.mod`) ?? 0);
       if (dmgState.offhand && abilityMod > 0) abilityMod = 0;
@@ -293,10 +320,10 @@ export async function rollDamageForTargets({ actor, item, dmgState, targetRefs =
     }
 
     // 3. Add extra rows from the dialog.
-    const extras = Array.isArray(dmgState.extraRows) ? dmgState.extraRows : [];
+    const extras = ( Array.isArray(dmgState.extraRows) ? dmgState.extraRows : []);
     for (const row of extras) {
-      if (!row?.formula) continue;
-      damageParts.push([row.formula, row.type || "kinetic", row.inCrit]); // [formula, type, inCrit]
+        if (!row?.formula) continue;
+        damageParts.push(normalizeDamagePart(row)); // [formula, type, inCrit]
     }
 
     // 4. Go through and do any formula edits that require     
@@ -305,15 +332,17 @@ export async function rollDamageForTargets({ actor, item, dmgState, targetRefs =
 
     // Apply min faces if the flag is set.
     if (dmgState.useMinDie) {
-    damageParts = applyMinByFaces(damageParts);
+        damageParts = applyMinByFaces(damageParts);
     }
-
+    
     // Give damage adv or disadv this may be changed later to accomadate pack that will handle this. 
     if(dmgState.otpDamageAdv || dmgState.otpDamageDis){
-    const damAdv = otpDamageAdv ? otpDamageAdv : otpDamageDis;
-    damageParts = applyDamageAdvantage(damageParts, damAdv);
+        const useAdvantage = !!dmgState.otpDamageAdv;
+        damageParts = applyDamageAdvantage(damageParts, useAdvantage);
     };
 
+    const hasCrits = Object.values(critMap).some(status => status === true);
+    const { basePool, critPool } = buildDamagePools(damageParts, hasCrits, dmgState.brutalXdY, dmgState.brutalDamType);
 
     // 5. roll for group or individually for each target.
     const outputDamage = [];
@@ -325,10 +354,10 @@ export async function rollDamageForTargets({ actor, item, dmgState, targetRefs =
             const isCrit = !!critMap[ref];
             
             // Build the roll arrays FOR THIS TARGET.
-            const { rollArray, critRollArray } = await buildRollArrays(damageParts, isCrit);
-            
+            const { RollArray } = await buildRollArrays( basePool );
+            const { CritRollArray } = await buildRollArrays( critPool );
             // Call the calculator FOR THIS TARGET.
-            outputDamage.push(damageCalc(rollArray, critRollArray, isCrit, ref));
+            outputDamage.push(damageCalc(RollArray, CritRollArray, isCrit, ref));
             
             //"Roll the dice" on the screen
             for( const roller of RollArray) { game.dice3d.showForRoll(roller) };
@@ -337,13 +366,12 @@ export async function rollDamageForTargets({ actor, item, dmgState, targetRefs =
     } else {
         // --- GROUP ROLL ---
         // No loop here. The action is once for the whole group.
-        const hasCrits = Object.values(critMap).some(status => status === true);
-        
+         
         // Build the roll arrays ONCE.
-        const { rollArray, critRollArray } = await buildRollArrays(damageParts, hasCrits);
+        const { RollArray, CritRollArray } = await buildRollArrays(basePool, hasCrits, dmgState.brutalXdY, dmgState.brutalDamType);
         
         // Call the calculator ONCE.
-        outputDamage.push(damageCalc(rollArray, critRollArray, hasCrits, ""));
+        outputDamage.push(damageCalc(RollArray, CritRollArray, hasCrits, ""));
         //"Roll the dice" on the screen
         for( const roller of RollArray) { game.dice3d.showForRoll(roller) };
         for( const roller of CritRollArray) { game.dice3d.showForRoll(roller) };

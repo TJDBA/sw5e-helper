@@ -94,6 +94,7 @@ export class DamageDialog extends BaseDialog {
     const brutalVal = Number(sys.properties?.brutal ?? 0) || 0;
     const showBrutal = brutalVal > 0;
     const baseFaces = this._getFirstDieFaces(weaponDamageParts[0]?.formula);
+    const brutalDamType = weaponDamageParts[0]?.type;
 
     // Weapon locking (for card-initiated dialogs)
     const weaponLocked = this.scope?.type === "card" || this.scope?.type === "row";
@@ -111,6 +112,7 @@ export class DamageDialog extends BaseDialog {
       // Brutal weapon
       showBrutal,
       brutalXdY: showBrutal && baseFaces ? `${brutalVal}d${baseFaces}` : "",
+      brutalDamType,
       
       // Basic options
       ability: this.state.ability,
