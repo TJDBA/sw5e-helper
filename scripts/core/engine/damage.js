@@ -1,407 +1,386 @@
-// scripts/core/engine/damage.js
-import { getWeaponById } from "../adapter/sw5e.js";
+/*
+
+refactoring damage.js to allow for damage type dice color and to setup return file to 
+Will be building it around now core test script sturcture found in https://github.com/TJDBA/sw5e-helper/issues/7
+*/
 
 const signed = n => `${n >= 0 ? "+" : ""}${n}`;
+const DIE_RE = /(\d+)d(\d+)(?:\s*min\s*(\d+))?/gi; // NdF [minY]
 
 // Feature flip: allow ability mod to damage on off-hand attacks
 let ALLOW_OFFHAND_DAMAGE_MOD = false;
 
 /* ----------------------------- helpers ----------------------------- */
-
-function deriveDefaultAbility(item) {
+//returns str by default unless weapon is ranged or it has finesse and dex is greater then str
+function deriveDefaultAbility(item, actor) {
   const sys = item.system ?? {};
   if (sys.ability) return sys.ability;
   const type = sys.actionType || sys.activation?.type;
   const ranged = type?.startsWith?.("r");
   const finesse = sys.properties?.fin || sys.properties?.finesse;
-  return (ranged || finesse) ? "dex" : "str";
+  const dexVal = Number(foundry.utils.getProperty(actor,'system.abilities.dex.mod'));
+  const strVal = Number(foundry.utils.getProperty(actor,'system.abilities.str.mod'));
+  return (ranged || (finesse && (dexVal > strVal))) ? "dex" : "str";
 }
 
-// SW5E Brutal is stored as a short property flag `system.properties.bru`
-function getBrutal(item) {
-  const p = item.system?.properties ?? {};
-  if (typeof p.bru === "number") return p.bru;
-  if (p.bru === true) return 1;
-  return 0;
+// Build weapon damage formulas (array of strings) and whether they use @mod (needed for ability override)
+function weaponParts(item) {
+    
+    //Make sure the parts array is a string. 
+    const parts = (item.system?.damage?.parts || []).map( ([f, t]) =>  normalizeDamagePart([f, t, true]) );
+
+    // check if @mod is used (allowed only once in weapon) then normalizes the data
+    
+    const usesAtMod = parts.some(f => /@mod\b/.test(f));
+    const cleanedParts = usesAtMod ? parts.map(([f, t, i]) => [removeAtMod(f), t, i]) : parts;
+    
+    return { parts: cleanedParts, usesAtMod };
 }
 
-const DIE_RE = /(\d+)d(\d+)(?:\s*min\s*(\d+))?/gi; // NdF [minY]
-
-// Double only dice, preserve any existing min
-function doubleDice(formula) {
-  return String(formula || "").replace(DIE_RE, (_, n, f, min) => {
-    const N = Number(n) * 2;
-    return `${N}d${f}${min ? `min${min}` : ""}`;
-  });
+/**
+ * Removes the @mod term from a formula string.
+ * @param {string} formula - The formula, e.g., "1d8 + @mod + 5".
+ * @returns {string} The formula without the @mod term, e.g., "1d8 + 5".
+ */
+function removeAtMod(formula) {
+  return formula
+    .split('+') // 1. Split into parts: ["1d8 ", " @mod ", " 5"]
+    .map(p => p.trim()) // 2. Trim whitespace: ["1d8", "@mod", "5"]
+    .filter(p => p !== '@mod') // 3. Remove the @mod term: ["1d8", "5"]
+    .join('+'); // 4. Join back together: "1d8 + 5"
 }
 
 // Per-face minimums table
 const MIN_BY_FACES = { 4: 2, 6: 2, 8: 3, 10: 4, 12: 5, 20: 8 };
 
 // Apply per-face minimums, preserving the higher of existing vs table
-function applyMinByFaces(formula) {
-  return String(formula || "").replace(DIE_RE, (_, n, f, min) => {
-    const faces = Number(f);
-    const wanted = MIN_BY_FACES[faces];
-    if (!wanted) return `${n}d${f}${min ? `min${min}` : ""}`;
-    const eff = Math.max(Number(min ?? 0), wanted);
-    return `${n}d${f}min${eff}`;
+function applyMinByFaces(damageParts) {
+  return damageParts.map(([formula, type, inCrit]) => {
+    const modifiedFormula = String(formula).replace(DIE_RE, (_, n, f, min) => {
+      const faces = Number(f);
+      const wanted = MIN_BY_FACES[faces];
+      if (!wanted) return `${n}d${f}${min ? `min${min}` : ""}`;
+      const eff = Math.max(Number(min ?? 0), wanted);
+      return `${n}d${f}min${eff}`;
+    });
+    return [modifiedFormula, type, inCrit];
   });
 }
 
-// Find first NdF in a formula to determine faces for Brutal
-function firstDieFaces(formula) {
-  const m = [...String(formula || "").matchAll(DIE_RE)][0];
-  return m ? Number(m[2]) : null;
+function normalizeDamagePart(part) {
+  // 1. Handle completely invalid input first.
+  if (part === null || part === undefined) {
+    return ["0", "", false];
+  }
+  // 2. Normalize the input shape to always be an array.
+  // If `part` is a string, this becomes `[part]`. If it's an array, it stays an array.
+  const partAsArray = Array.isArray(part) ? part : [part];
+  // 3. Destructure the array with defaults. This handles all cases.
+  const [formula = "0", type = "", inCrit = false] = partAsArray;
+  // 4. Return the fully structured and type-coerced array. This is robust.
+  return [String(formula).replace(" ",""), String(type), !!inCrit];
 }
 
-// Build weapon damage formulas (array of strings) and whether they use @mod (needed for ability override)
-function weaponParts(item) {
-  //Make sure the parts array is a string. 
-  const parts = (item.system?.damage?.parts || []).map(
-    ([formula, type]) => [
-      String(formula ?? "0"),
-      String(type ?? "kinetic")
-    ]
-  );
-  const usesAtMod = parts.some(f => /@mod\b/.test(f));
-  return { parts, usesAtMod };
+/**
+ * Applies advantage or disadvantage to damage formulas.
+ * NOTE: This function intentionally only modifies damage parts where 'inCrit' is true.
+ * In this system, the 'inCrit' flag signifies that a damage part consists of rollable dice
+ * and is eligible for all forms of modification (criticals, advantage, rerolls, etc.).
+ * Applies advantage or disadvantage to the dice portions of damage formulas.
+ * @param {Array<[string, ...any]>} damageParts - The array of damage parts.
+ * @param {boolean} useAdvantage - True for advantage (max), false for disadvantage (min).
+ * @returns {Array} The new array of damage parts with modified formulas.
+**/
+function applyDamageAdvantage(damagePart, useAdvantage) {
+    //const DICE_REGEX = /(\d+d\d+)/gi;
+    const func = useAdvantage ? 'max' : 'min';
+
+    return damagePart.map(([formula, type, inCrit]) => {
+        // Only modify the formula if the inCrit flag is explicitly true.
+        const modifiedFormula = (inCrit == true) ? `${func}(${formula}, ${formula})` : formula; // Otherwise, leave the formula unchanged.   
+        // Return the full part with the potentially modified formula.
+        return [modifiedFormula, type, inCrit];
+    });
 }
 
-// FIXED: Damage type to DSN color mapping
-function getDamageTypeColor(damageType) {
-  const colorMap = {
-    kinetic: "#8B4513",    // brown
-    energy: "#FF4500",     // orange-red  
-    ion: "#00BFFF",        // deep sky blue
-    acid: "#32CD32",       // lime green
-    cold: "#87CEEB",       // sky blue
-    fire: "#DC143C",       // crimson
-    force: "#9370DB",      // medium purple
-    lightning: "#FFD700",  // gold
-    necrotic: "#2F4F4F",   // dark slate gray
-    poison: "#9ACD32",     // yellow green
-    psychic: "#DA70D6",    // orchid
-    sonic: "#420322ff",      // maroon
-    true: "#FFFFFF"        // white
-  };
-  return colorMap[damageType?.toLowerCase()] || "#FFFFFF";
+/**
+ * Creates and evaluates a Roll, handling empty inputs and flavoring terms/dice.
+ * @param {string|null} rollFormula - The formula. If null, the function returns null.
+ * @param {string|null} type - The damage type. Defaults to "" if null.
+ * @returns {Promise<Roll|null>} The evaluated Roll object, or null if the formula was null.
+ */
+async function createRoll(rollFormula, type) {
+    // Handle the explicit null case. This is the only way to get a null return.
+    if (rollFormula === null) {
+        return null;
+    }
+
+    // Sanitize the inputs.
+    // If the formula is an empty string or "0", treat it as "0". Otherwise, use it as-is.
+    const finalFormula = String(rollFormula).trim() || "0";
+    // If the type is null or undefined, default it to an empty string.
+    const finalType = type ?? undefined;
+       
+    const roll = await new Roll(finalFormula).evaluate({async:true});
+    
+    // Type has to go here for DSN animation and for damage calculation
+    roll.terms
+        .filter(term => term instanceof Die || term instanceof NumericTerm)
+        .forEach(term => { term.options.flavor = finalType });
+    
+    //This is for rolls with complex formulas like max(). 
+    // Type has to go here for DSN animation
+    if(roll.dice.length > 0){
+        roll.dice.forEach(die => {
+            die.options.flavor = finalType;
+        });
+    }
+    return roll;
+}
+
+/**
+ * Builds the base and critical roll arrays from a list of damage parts.
+ * @param {Array} damageParts - The processed list of damage parts.
+ *- `isCrit` flag is for brutal die
+ * @returns {Promise<{rollArray: Array}>}
+ */
+async function buildRollArrays(damageParts) {
+    let rollArray = [];
+
+    for (const [formula, type, inCrit] of damageParts) {
+        const roll = await createRoll(formula, type);
+        if (roll) { rollArray.push(roll); }
+    }
+  return rollArray;
+}
+
+/**
+ * Sums evaluated rolls, calculates totals, and aggregates damage by type.
+ * @param {Roll[]} rollArray - The evaluated Roll objects for base damage.
+ * @param {Roll[]} critRollArray - The evaluated Roll objects for EXTRA critical damage.
+ * @param {boolean} isCrit - True if this damage instance is a critical hit.
+ * @param {string} ref - The reference ID to link back to the target.
+ * @returns {{
+ *   TotalDam: number,
+ *   TotalCritDam: number,
+ *   TotalDamByType: object,
+ *   TotalCritDamByType: object,
+ *   RollArray: Roll[],
+ *   CritRollArray: Roll[],
+ *   TargetRef: string
+ * }}
+ */
+function damageCalc(rollArray, critRollArray, isCrit, ref) {
+
+/**
+ * Helper to sum a list of Roll objects.
+ * @param {Roll[]} rolls - The array of rolls to sum.
+ * @returns {{total: number, byType: object}}
+ */
+    // --- This is the correct helper to put inside your damageCalc function ---
+
+  /**
+   * Helper to sum a list of Roll objects based on the term structure.
+   * @param {Roll[]} rolls - The array of rolls to sum.
+   * @returns {{total: number, byType: object}}
+   */
+    const _sumRolls = (rolls) => {
+        let total = 0;
+        const byType = {};
+
+        rolls.forEach((roll) => {
+            total += roll.total;
+
+            for (const term of roll.terms) {
+            const type = term.options.flavor;
+            if (!type) continue; // Skip terms without a damage type.
+
+            byType[type] = byType[type] || 0;
+
+            if (term instanceof Die) {
+                // It correctly sums the individual results within a Die term.
+                const dieTotal = term.results.reduce((sum, result) => sum + result.result, 0);
+                byType[type] += dieTotal;
+            } else if (term instanceof NumericTerm) {
+                // It correctly adds the value of static numbers.
+                byType[type] += term.number;
+            }
+            }
+        });
+        return { total, byType };
+    };
+
+    // 1. Calculate the totals for the base and crit parts separately.
+    const baseDamage = _sumRolls(rollArray);
+    const critDamage = isCrit ? _sumRolls(critRollArray) : { total: 0, byType: {} };
+
+
+    // 2. Return the complete, structured object.
+    return {
+        // The base damage total. This is what a normal hit does.
+        TotalDam: baseDamage.total,
+        // The EXTRA damage from the crit.
+        TotalCritDam: critDamage.total,
+        // The damage-by-type for the base roll.
+        TotalDamByType: baseDamage.byType,
+        // The damage-by-type for ONLY THE EXTRA crit parts.
+        TotalCritDamByType: critDamage.byType,
+        RollArray: rollArray,
+        CritRollArray: critRollArray,
+        TargetRef: ref
+    };
+}
+
+/**
+ * Processes damage parts into separate pools for base and extra critical damage.
+ * @param {Array<[string, string, boolean]>} damageParts - The input array of damage parts.
+ * @param {boolean} hasCrit - Whether a critical hit occurred (for adding brutal dice).
+ * @param {string} brutalFormula - The brutal dice formula (e.g., "1d8").
+ * @param {string} brutalType - The damage type for brutal dice.
+ * @returns {DamagePools} An object containing the base and crit damage pools.
+ */
+function buildDamagePools(damageParts, hasCrit, brutalFormula, brutalType) {
+    const basePool = [];
+    const critPool = [];
+
+    // 1. One pass to process all parts.
+    for (const [formula, type, inCrit] of damageParts) {
+        const terms = formula.split('+').map(term => term.trim());
+
+    for (const term of terms) {
+        if (term === "") continue; // Skip empty terms from bad formulas like "1d8 + ".
+
+        // All terms go into the base damage pool.
+        basePool.push([term, type, inCrit]);
+
+        // Only dice terms from eligible parts go into the EXTRA crit pool.
+        // `isNaN(term)` is true for "1d8", "max(1d6,1d6)", etc. It's false for "5".
+        if ( inCrit  && isNaN(term) ) {
+            critPool.push([term, type, inCrit]);
+        }
+    }
+    }
+
+    // 2. Add brutal dice to the crit pool if a crit occurred.
+    if (hasCrit && brutalFormula) {
+        critPool.push([brutalFormula, brutalType, true]);
+    }
+
+    // 3. Return the final, separated pools.
+    return { basePool, critPool };
 }
 
 /* ----------------------------- MAIN ENGINE ----------------------------- */
 
-//new version with simplified workflow, adds back in damage types and returns an array.
-export async function rollDamageForTargets({ actor, item, dmgState, targetRefs = [], critMap = {} }) {
-  console.log("SW5E DEBUG: rollDamageForTargets ENTRY", { weaponName: item?.name, dmgState, targetRefs, critMap });
+export async function rollDamageForTargets({ actor, item, dmgState, targetRefs = [], critMap = {} }, separate = false) {
 
-  const brutalVal = getBrutal(item);
+    /**
+     * Determines the correct ability key based on a priority list.
+     * Priority: User Override > Item Setting > Derived Default
+     * @param {object} dmgState - The dialog state.
+     *- The dmgState.ability is the user override from the dialog
+    * @param {object} item - The weapon item.
+    * @param {object} actor - The actor.
+    * @returns {string} The final ability key ('str', 'dex', etc.).
+    */
+    function _getAbilityKey(dmgState, item, actor) {
+        // 1. Highest priority: The user's override from the dialog.
+        if (dmgState.ability) { return dmgState.ability; }
 
-  // --- NEW: Centralized Formula Builder ---
-  const makeFormula = (isCrit) => {
+        // 2. Second priority: The item's specific setting.
+        // If it's anything other than 'default' (e.g., 'str', 'con', 'none'), use it.
+        const itemAbility = item?.system?.ability;
+        if (itemAbility && itemAbility !== 'default') { return itemAbility; }
+
+        // 3. Lowest priority: The item is set to 'default' or has no setting, so derive it.
+        return deriveDefaultAbility(item, actor);
+    }
+
+
     // 1. Gather all damage parts into a structured array.
-    let damageParts = weaponParts(item); // e.g., [['1d10', 'energy']]
-
-    // 2. Add ability modifier (if not already handled by @mod).
-    const usesAtMod = damageParts.some(([f]) => /@mod\b/.test(f));
-    if (!usesAtMod) {
-      const abilityKey = dmgState.ability || item?.system?.ability || deriveDefaultAbility(item);
+    const { parts: baseWeaponParts, usesAtMod } = weaponParts(item);
+    let damageParts = [...baseWeaponParts];
+    
+    // Get weapon's primary damage type, default kinetic
+    const primaryType = damageParts[0]?.[1] || "kinetic";
+    
+    // 2. Add ability modifier
+    if (usesAtMod) {
+      const abilityKey = _getAbilityKey(dmgState, item, actor);
+      
       let abilityMod = dmgState.smart ? Number(dmgState.smartAbility ?? 0)
                                       : Number(foundry.utils.getProperty(actor, `system.abilities.${abilityKey}.mod`) ?? 0);
       if (dmgState.offhand && abilityMod > 0) abilityMod = 0;
       
       if (abilityMod !== 0) {
         // Add the ability mod with the weapon's primary damage type.
-        const primaryType = damageParts[0]?.[1] || "kinetic";
         damageParts.push([signed(abilityMod), primaryType]);
       }
     }
 
     // 3. Add extra rows from the dialog.
-    const extras = Array.isArray(dmgState.extraRows) ? dmgState.extraRows : [];
+    const extras = ( Array.isArray(dmgState.extraRows) ? dmgState.extraRows : []);
     for (const row of extras) {
-      if (!row?.formula) continue;
-      damageParts.push([row.formula, row.type || "kinetic", row.inCrit]); // [formula, type, inCrit]
+        if (!row?.formula) continue;
+        damageParts.push(normalizeDamagePart(row)); // [formula, type, inCrit]
     }
 
-    // 4. Process all parts into a final formula string.
-    let formulaString = damageParts.map(([formula, type, inCrit]) => {
-      let part = formula;
-      // Handle crits by doubling dice.
-      if (isCrit) {
-        // Double dice for base weapon parts and extras marked 'inCrit'.
-        const isBasePart = inCrit === undefined;
-        if (isBasePart || inCrit) {
-          part = doubleDice(part);
-        }
-      }
+    // 4. Go through and do any formula edits that require     
       
-      // --- FIX #2: Best place to apply minimums ---
-      // Apply min faces if the flag is set.
-      if (dmgState.useMinDie) {
-        part = applyMinByFaces(part);
-      }
-      
-      // --- FIX #1: Best place to add damage type ---
-      // Wrap the final part in parentheses if needed and add the type.
-      return part.includes("+") || part.includes("-") ? `(${part})[${type}]` : `${part}[${type}]`;
+    //PLACE HOLDER: For any pack files that may need to do formula edits before min die threshold, like armor resient's reroll max die roll. 
 
-    }).join(" + ");
-
-    // 5. Add brutal dice on a crit.
-    if (isCrit && brutalVal > 0) {
-      const faces = firstDieFaces(damageParts[0]?.[0]);
-      if (faces) {
-        const primaryType = damageParts[0]?.[1] || "kinetic";
-        formulaString += ` + ${brutalVal}d${faces}[${primaryType}]`;
-      }
+    // Apply min faces if the flag is set.
+    if (dmgState.useMinDie) {
+        damageParts = applyMinByFaces(damageParts);
     }
     
-    return formulaString || "0";
-  };
-
-  // --- SIMPLIFIED ROLLING LOGIC ---
-  
-  // This function now just handles the Roll object and DSN.
-  const doRoll = async (formula, rollContext = "") => {
-    const data = { mod: Number(dmgState.smartAbility ?? 0) }; // For @mod
-    const roll = await new Roll(formula, data).evaluate({ async: true });
-    
-    try {
-      await game.dice3d?.showForRoll?.(roll, game.user, true); 
-    } catch (_) {}
-    
-    // You'll need a new helper to sum damage by type from the roll terms.
-    // This is more accurate than assuming one primary type.
-    const types = _sumDamageByType(roll);
-    
-    console.log(`SW5E DEBUG: Roll result ${rollContext}`, { total: roll.total, formula: roll.formula, types });
-    return { roll, types };
-  };
-
-  // Main logic...
-  const rolls = [];
-  const perTargetTotals = new Map();
-  const perTargetTypes = new Map();
-
-  // Always make a single base roll.
-  const baseFormula = makeFormula(false);
-  const { roll: baseRoll, types: baseTypes } = await doRoll(baseFormula, "- base roll");
-  rolls.push(baseRoll);
-
-  // If there are no crits, we're done.
-  const hasCrits = targetRefs.some(ref => !!critMap[ref]);
-  if (!hasCrits) {
-    for (const ref of targetRefs) {
-      perTargetTotals.set(ref, baseRoll.total);
-      perTargetTypes.set(ref, baseTypes);
-    }
-    const info = `${baseFormula} = ${baseRoll.total}`;
-    return { perTargetTotals, perTargetTypes, rolls, info, singleTotal: baseRoll.total };
-  }
-
-  // If there are crits, calculate and roll the extra crit damage.
-  const critFormula = makeFormula(true);
-  const { roll: critRoll, types: critTypes } = await doRoll(critFormula, "- full crit roll");
-  rolls.push(critRoll);
-
-  // Distribute totals
-  for (const ref of targetRefs) {
-    if (critMap[ref]) {
-      perTargetTotals.set(ref, critRoll.total);
-      perTargetTypes.set(ref, critTypes);
-    } else {
-      perTargetTotals.set(ref, baseRoll.total);
-      perTargetTypes.set(ref, baseTypes);
-    }
-  }
-
-  const info = `Base: ${baseFormula} = ${baseRoll.total} | Crit: ${critFormula} = ${critRoll.total}`;
-  return { perTargetTotals, perTargetTypes, rolls, info };
-}
-
-// You will need this new helper function to parse the roll results accurately.
-function _sumDamageByType(roll) {
-    const damageMap = {};
-    for (const term of roll.terms) {
-        // We only care about Dice and Numeric terms with a flavor (damage type)
-        if ((term instanceof Dice || term instanceof NumericTerm) && term.flavor) {
-            const type = term.flavor;
-            const total = term instanceof Dice ? term.total : term.number;
-            damageMap[type] = (damageMap[type] || 0) + total;
-        }
-    }
-    return damageMap;
-}
-
-
-
-/*  Replaced with new version with simplified workflow, adds back in damage types and returns an array. 
-// CONSOLIDATED: Single damage rolling function that handles all cases
-export async function rollDamageForTargets({ actor, item, dmgState, targetRefs = [], critMap = {}, separate = false }) {
-  console.log("SW5E DEBUG: rollDamageForTargets ENTRY", { 
-    weaponName: item?.name, 
-    dmgState, 
-    targetRefs, 
-    critMap,
-    separate
-  });
-
-  const { parts: baseParts, usesAtMod } = weaponParts(item);
-  const base = baseParts.join(" + ") || "0";
-  const brutalVal = getBrutal(item);
-  const faces = firstDieFaces(base);
-
-  console.log("SW5E DEBUG: Weapon damage formula", { base, usesAtMod, brutalVal, faces });
-
-  // ability mod (smart or chosen) with off-hand rule
-  const abilityKey = dmgState.ability || item?.system?.ability || deriveDefaultAbility(item);
-  let abilityMod = dmgState.smart ? Number(dmgState.smartAbility ?? 0)
-                                  : Number(foundry.utils.getProperty(actor, `system.abilities.${abilityKey}.mod`) ?? 0);
-  if (dmgState.offhand && abilityMod > 0) abilityMod = 0;
-
-  const extras = Array.isArray(dmgState.extraRows) ? dmgState.extraRows : [];
-
-  const makeFormula = (isCrit) => {
-    let f = isCrit ? doubleDice(base) : base;
-    if (isCrit && brutalVal > 0 && faces) f = `${f} + ${brutalVal}d${faces}`;
-    if (!usesAtMod && abilityMod) f = `${f} + ${signed(abilityMod)}`;
-    
-    // Add extra damage modifiers
-    for (const r of extras) {
-      if (!r?.formula) continue;
-      const chunk = (isCrit && r.inCrit) ? doubleDice(r.formula) : r.formula;
-      f = `${f} + (${chunk})`;
-    }
-    return f;
-  };
-
-  const doRoll = async (isCrit, rollContext = "", damageType = "kinetic") => {
-    const formula = makeFormula(isCrit);
-    const data = usesAtMod ? { mod: abilityMod } : {};
-    console.log(`SW5E DEBUG: doRoll(${isCrit}) ${rollContext}`, { formula, data, damageType });
-    
-    const roll = await (new Roll(formula, data)).evaluate({ async: true });
-    console.log(`SW5E DEBUG: Roll result ${rollContext}`, { total: roll.total, formula: roll.formula });
-    
-    // FIXED: Apply damage type color to DSN
-    try { 
-      await game.dice3d?.showForRoll?.(roll, game.user, true, null, false, null, {
-        colorset: getDamageTypeColor(damageType)
-      }); 
-    } catch (_) {
-      // Fallback without color if DSN doesn't support it
-      try {
-        await game.dice3d?.showForRoll?.(roll, game.user, true);
-      } catch (_) {}
-    }
-    return roll;
-  };
-
-  // Determine primary damage type for DSN coloring
-  const primaryDamageType = (item.system?.damage?.parts?.[0]?.[1]) || "kinetic";
-
-  const perTargetTotals = new Map();
-  const perTargetTypes = new Map();
-  const rolls = [];
-  let info = "";
-
-  if (!targetRefs.length) {
-    // Manual mode, no targets selected: single roll using global crit toggle
-    const r = await doRoll(!!dmgState.isCrit, "- manual no targets", primaryDamageType);
-    rolls.push(r);
-    return { 
-      perTargetTotals, 
-      perTargetTypes, 
-      rolls, 
-      singleTotal: r.total ?? 0, 
-      info: `${makeFormula(!!dmgState.isCrit)} = ${r.total}`
+    // Give damage adv or disadv this may be changed later to accomadate pack that will handle this. 
+    if(dmgState.otpDamageAdv || dmgState.otpDamageDis){
+        const useAdvantage = !!dmgState.otpDamageAdv;
+        damageParts = applyDamageAdvantage(damageParts, useAdvantage);
     };
-  }
 
-  if (separate) {
-    // Roll once per target using individual crit status
-    console.log("SW5E DEBUG: Separate rolls mode");
-    for (const ref of targetRefs) {
-      const r = await doRoll(!!critMap[ref], `- separate for ${ref}`, primaryDamageType);
-      rolls.push(r);
-      const total = r.total ?? 0;
-      perTargetTotals.set(ref, total);
-      perTargetTypes.set(ref, { [primaryDamageType]: total }); // Use actual damage type
-    }
-    info = `Per-target rolls using individual crit status`;
-  } else {
-    // Shared roll with mixed crit logic
-    const critRefs = targetRefs.filter(ref => !!critMap[ref]);
-    const hitRefs  = targetRefs.filter(ref => !critMap[ref]);
+    const hasCrits = Object.values(critMap).some(status => status === true);
+    const { basePool, critPool } = buildDamagePools(damageParts, hasCrits, dmgState.brutalXdY, dmgState.brutalDamType);
 
-    if (!critRefs.length || !hitRefs.length) {
-      // Uniform case: all same type, one roll applied to all
-      const isCrit = !!critRefs.length;
-      console.log("SW5E DEBUG: Uniform case - all same type", { isCrit, critRefs: critRefs.length, hitRefs: hitRefs.length });
-      const r = await doRoll(isCrit, "- uniform case", primaryDamageType); 
-      rolls.push(r);
-      const total = r.total ?? 0;
-      
-      for (const ref of targetRefs) {
-        perTargetTotals.set(ref, total);
-        perTargetTypes.set(ref, { [primaryDamageType]: total }); // Use actual damage type
-      }
-      info = `${makeFormula(isCrit)} = ${total}`;
+    // 5. roll for group or individually for each target.
+    const outputDamage = [];
+    
+    if (separate) {
+        // --- INDIVIDUAL ROLLS ---
+        // The loop belongs here, because the action is per-target.
+        for (const ref of targetRefs) {
+            const isCrit = !!critMap[ref];
+            
+            // Build the roll arrays FOR THIS TARGET.
+            const { RollArray } = await buildRollArrays( basePool );
+            const { CritRollArray } = await buildRollArrays( critPool );
+            // Call the calculator FOR THIS TARGET.
+            outputDamage.push(damageCalc(RollArray, CritRollArray, isCrit, ref));
+            
+            //"Roll the dice" on the screen
+            for( const roller of RollArray) { game.dice3d.showForRoll(roller) };
+            for( const roller of CritRollArray) { game.dice3d.showForRoll(roller) };
+        }
     } else {
-      // Mixed case: base roll + crit extra roll
-      console.log("SW5E DEBUG: Mixed case - some crits, some hits", { critRefs, hitRefs });
-      
-      // Base roll (non-crit)
-      const baseRoll = await doRoll(false, "- mixed case base", primaryDamageType);
-      rolls.push(baseRoll);
-      const baseTotal = baseRoll.total ?? 0;
-
-      // Crit extra: only duplicate dice + brutal
-      const diceOnly = (s) => {
-        const matches = s.match(/(\d+d\d+)/gi);
-        return matches ? matches.join(" + ") : "0";
-      };
-      
-      let critExtra = diceOnly(base);
-      for (const r of extras) {
-        if (!r?.formula || !r.inCrit) continue;
-        const d = diceOnly(r.formula);
-        if (d && d !== "0") critExtra = critExtra ? `${critExtra} + ${d}` : d;
-      }
-      if (brutalVal > 0 && faces) critExtra = critExtra ? `${critExtra} + ${brutalVal}d${faces}` : `${brutalVal}d${faces}`;
-
-      console.log("SW5E DEBUG: Crit extra formula", { critExtra });
-      const extraRoll = await (new Roll(critExtra || "0")).evaluate({ async: true });
-      console.log("SW5E DEBUG: Crit extra roll", { total: extraRoll.total });
-      
-      // FIXED: Apply damage type color to crit extra roll too
-      try { 
-        await game.dice3d?.showForRoll?.(extraRoll, game.user, true, null, false, null, {
-          colorset: getDamageTypeColor(primaryDamageType)
-        }); 
-      } catch (_) {
-        try { await game.dice3d?.showForRoll?.(extraRoll, game.user, true); } catch (_) {}
-      }
-      
-      rolls.push(extraRoll);
-      const extraTotal = extraRoll.total ?? 0;
-
-      // Apply totals
-      for (const ref of hitRefs) {
-        perTargetTotals.set(ref, baseTotal);
-        perTargetTypes.set(ref, { [primaryDamageType]: baseTotal });
-      }
-      for (const ref of critRefs) {
-        const total = baseTotal + extraTotal;
-        perTargetTotals.set(ref, total);
-        perTargetTypes.set(ref, { [primaryDamageType]: total });
-      }
-      info = `Base: ${makeFormula(false)} = ${baseTotal}  +  Crit Extra: ${critExtra || "0"} = ${extraTotal}`;
+        // --- GROUP ROLL ---
+        // No loop here. The action is once for the whole group.
+         
+        // Build the roll arrays ONCE.
+        const RollArray = await buildRollArrays( basePool );
+        const CritRollArray = await buildRollArrays( critPool );
+        
+        // Call the calculator ONCE.
+        outputDamage.push(damageCalc(RollArray, CritRollArray, hasCrits, ""));
+        //"Roll the dice" on the screen
+        for( const roller of RollArray) { game.dice3d.showForRoll(roller) };
+        for( const roller of CritRollArray) { game.dice3d.showForRoll(roller) };
     }
-  }
+        
+    
+    return outputDamage
 
-  console.log("SW5E DEBUG: rollDamageForTargets RESULT", { perTargetTotals, perTargetTypes, rolls: rolls.length, info });
-  return { perTargetTotals, perTargetTypes, rolls, info };
-} */
 
-  
+};
+
+
