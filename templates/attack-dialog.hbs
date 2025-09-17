@@ -1,54 +1,59 @@
 {{!-- templates/attack-dialog.hbs --}}
-{{!-- SW5E Helper - Attack Dialog Template with Pack Integration --}}
+{{!-- SW5E Helper - Modern Attack Dialog Template with Pack Integration --}}
 
 <form class="sw5e-helper-attack">
-
   {{!-- ================= Header ================= --}}
   <header class="hdr">
-    <h2>{{localize "SW5EHELPER.AttackConfiguration"}}</h2>
+    <h2>⚔️ {{localize "SW5EHELPER.AttackConfiguration"}}</h2>
   </header>
 
-  {{!-- ============ Quick Row ============ --}}
-  <section class="row quick">
-    <button type="button" class="btn" data-action="load-last">
-      {{localize "SW5EHELPER.LoadLast"}}
+  {{!-- ============ Quick Actions ============ --}}
+  <section class="row quick-actions">
+    <button type="button" class="btn secondary" data-action="load-last">
+      📋 {{localize "SW5EHELPER.LoadLast"}}
     </button>
   </section>
 
-  {{!-- =========== Weapon Selection Row ========== --}}
-  <section class="row weapon">
-    <label for="weaponId">{{localize "SW5EHELPER.Weapon"}}</label>
-    <select name="weaponId" id="weaponId">
+  {{!-- =========== Weapon Selection ========== --}}
+  <section class="row weapon-selection">
+    <label for="weaponId" class="form-label">{{localize "SW5EHELPER.Weapon"}}</label>
+    <select name="weaponId" id="weaponId" class="form-select">
       {{#each weapons}}
         <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
       {{/each}}
     </select>
   </section>
 
-  {{!-- ============== Per-weapon Presets ============== --}}
-  <section class="row favorites">
-    <label for="presetName" style="margin-left:.5rem">{{localize "SW5EHELPER.Preset"}}</label>
-    <select name="presetName" id="presetName">
+  {{!-- ============== Presets ============== --}}
+  <section class="row presets">
+    <label for="presetName" class="form-label">{{localize "SW5EHELPER.Preset"}}</label>
+    <select name="presetName" id="presetName" class="form-select">
       <option value="">{{localize "SW5EHELPER.None"}}</option>
       {{#each presets}}
         <option value="{{this.name}}" {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
       {{/each}}
     </select>
-    <button type="button" class="btn" data-action="load-preset">
-      {{localize "SW5EHELPER.Load"}}
-    </button>
-    <button type="button" class="btn" data-action="save">{{localize "SW5EHELPER.SavePreset"}}</button>
-    <button type="button" class="btn warn" data-action="delete">{{localize "SW5EHELPER.DeletePreset"}}</button>
+    <div class="preset-actions">
+      <button type="button" class="btn secondary" data-action="load-preset">
+        🔄 {{localize "SW5EHELPER.Load"}}
+      </button>
+      <button type="button" class="btn secondary" data-action="save">
+        💾 {{localize "SW5EHELPER.SavePreset"}}
+      </button>
+      <button type="button" class="btn warn" data-action="delete">
+        🗑️ {{localize "SW5EHELPER.DeletePreset"}}
+      </button>
+    </div>
   </section>
 
-  {{!-- ============ Basic Options Group ============ --}}
+  {{!-- ============ Basic Options ============ --}}
   <section class="row group-title">
-    <strong>{{localize "SW5EHELPER.BasicOptions"}}</strong>
+    <strong>🎯 {{localize "SW5EHELPER.BasicOptions"}}</strong>
   </section>
 
-  <section class="row uni1">
-    <label for="ability">{{localize "SW5EHELPER.AttackWith"}}</label>
-    <select name="ability" id="ability">
+  <section class="row ability-selection">
+    <label for="ability" class="form-label">{{localize "SW5EHELPER.AttackWith"}}</label>
+    <select name="ability" id="ability" class="form-select">
       <option value="">{{localize "SW5EHELPER.Default"}}</option>
       {{#each abilities}}
         <option value="{{this}}" {{#if (eq ../ability this)}}selected{{/if}}>{{this}}</option>
@@ -57,114 +62,138 @@
 
     <label class="chk offhand">
       <input type="checkbox" name="offhand" {{#if offhand}}checked{{/if}}>
+      <span class="checkmark"></span>
       {{localize "SW5EHELPER.OffHand"}}
     </label>
   </section>
 
-  <section class="row separate">
+  <section class="row roll-options">
     <label class="chk">
       <input type="checkbox" name="separate" {{#if separate}}checked{{/if}}>
+      <span class="checkmark"></span>
       {{localize "SW5EHELPER.SeparatePerTargetAtk"}}
     </label>
   </section>
 
-  {{!-- Read-only weapon attack bonus --}}
-  <section class="row atkbonus">
-    <label for="attackBonus">{{localize "SW5EHELPER.WeaponAttackBonus"}}</label>
-    <input type="text" id="attackBonus" value="{{attackBonusDisplay}}" readonly>
+  {{!-- ============ Attack Modifiers ============ --}}
+  <section class="row group-title">
+    <strong>⚡ {{localize "SW5EHELPER.AttackModifiers"}}</strong>
   </section>
 
-  <section class="row uni2">
-    <label for="atkMods">{{localize "SW5EHELPER.ExtraModsAtk"}}</label>
+  <section class="row weapon-bonus">
+    <label for="attackBonus" class="form-label">{{localize "SW5EHELPER.WeaponAttackBonus"}}</label>
+    <input type="text" id="attackBonus" value="{{attackBonusDisplay}}" readonly class="form-input readonly">
+  </section>
+
+  <section class="row extra-mods">
+    <label for="atkMods" class="form-label">{{localize "SW5EHELPER.ExtraModsAtk"}}</label>
     <input type="text" id="atkMods" name="atkMods"
            placeholder="{{localize 'SW5EHELPER.ExtraModsAtkPH'}}"
-           value="{{atkMods}}">
+           value="{{atkMods}}" class="form-input">
   </section>
 
-  {{!-- ======= Smart Weapon Override (dynamic visibility) ======= --}}
+  {{!-- ======= Smart Weapon Override ======= --}}
   {{#if showSmart}}
-  <section class="row smart">
+  <section class="row smart-weapon">
     <label class="chk">
       <input type="checkbox" name="smart" {{#if smart}}checked{{/if}}>
+      <span class="checkmark"></span>
       {{localize "SW5EHELPER.SmartWeaponOverride"}}
     </label>
   </section>
 
-  <section class="row smart2">
-    <label for="smartAbility" style="margin-left: .5rem">{{localize "SW5EHELPER.SmartAbility"}}</label>
-    <input type="number" id="smartAbility" name="smartAbility" value="{{smartAbility}}" style="width:4.2rem;">
-
-    <label for="smartProf" style="margin-left: .5rem">{{localize "SW5EHELPER.SmartProf"}}</label>
-    <input type="number" id="smartProf" name="smartProf" value="{{smartProf}}" style="width:4.2rem;">
+  <section class="row smart-stats">
+    <label for="smartAbility" class="form-label">{{localize "SW5EHELPER.SmartAbility"}}</label>
+    <input type="number" id="smartAbility" name="smartAbility" value="{{smartAbility}}" class="form-input number">
+    <label for="smartProf" class="form-label">{{localize "SW5EHELPER.SmartProf"}}</label>
+    <input type="number" id="smartProf" name="smartProf" value="{{smartProf}}" class="form-input number">
   </section>
   {{/if}}
 
-  {{!-- =============== Saving Throw (collapsible) =============== --}}
-  <details class="row saving">
-    <summary>{{localize "SW5EHELPER.SavingThrow"}}</summary>
-
-    <div class="row">
-      <label class="chk">
-        <input type="checkbox" name="saveOnHit" {{#if saveOnHit}}checked{{/if}}>
-        {{localize "SW5EHELPER.RequireSaveOnHit"}}
-      </label>
-    </div>
-
-    <div class="row">
-      <label class="chk">
-        <input type="checkbox" name="saveOnly" {{#if saveOnly}}checked{{/if}}>
-        {{localize "SW5EHELPER.SaveOnly"}}
-      </label>
-    </div>
-
-    <div class="row">
-      <label for="saveAbility">{{localize "SW5EHELPER.SaveType"}}</label>
-      <select name="saveAbility" id="saveAbility">
-        {{#each abilities}}
-          <option value="{{this}}" {{#if (eq ../saveAbility this)}}selected{{/if}}>{{this}}</option>
-        {{/each}}
-      </select>
-
-      <label for="saveDcFormula" style="margin-left:.5rem">{{localize "SW5EHELPER.SaveDCFormula"}}</label>
-      <input type="text" id="saveDcFormula" name="saveDcFormula" value="{{saveDcFormula}}" placeholder="8 + @prof + @mod">
-    </div>
-  </details>
-
-  {{!-- =============== Class Features (collapsible) =============== --}}
-  <details class="row features">
-    <summary>{{localize "SW5EHELPER.ClassFeatures"}}</summary>
-    <div class="row">
-      {{!-- Legacy system features (if any) --}}
-      {{#if features.length}}
-        {{#each features}}
-          <label class="chk" title="{{this.source}}">
-            <input type="checkbox" name="feature.{{this.id}}" {{#if this.enabled}}checked{{/if}}>
-            {{this.name}} — {{this.source}}
-          </label>
-        {{/each}}
-      {{/if}}
-      
-      {{!-- =============== PACK INTEGRATION - ATTACK FEATURES =============== --}}
-      {{!-- Dynamic pack attack features rendered here --}}
-      {{{packFeaturesHTML}}}
-      
-      {{#unless features.length}}{{#unless packFeaturesHTML}}
-        <em>{{localize "SW5EHELPER.NoFeatures"}}</em>
-      {{/unless}}{{/unless}}
-    </div>
-  </details>
-
-  {{!-- ============ Roll Mode (radio) ============ --}}
-  <section class="row rollmode">
-    <label><input type="radio" name="adv" value="adv"    {{#if (eq adv "adv")}}checked{{/if}}>    {{localize "SW5EHELPER.Adv"}}</label>
-    <label><input type="radio" name="adv" value="normal" {{#if (eq adv "normal")}}checked{{/if}}> {{localize "SW5EHELPER.Normal"}}</label>
-    <label><input type="radio" name="adv" value="dis"    {{#if (eq adv "dis")}}checked{{/if}}>    {{localize "SW5EHELPER.Disadv"}}</label>
+  {{!-- =============== Saving Throw =============== --}}
+  <section class="row group-title">
+    <strong>🛡️ {{localize "SW5EHELPER.SavingThrow"}}</strong>
   </section>
 
-  {{!-- ============ Footer (Roll/Cancel) ========== --}}
-  <footer class="row footer">
-    <button type="button" class="btn primary" data-action="roll">⚔️ {{localize "SW5EHELPER.RollAttack"}}</button>
-    <button type="button" class="btn cancel" data-action="cancel">{{localize "SW5EHELPER.Cancel"}}</button>
-  </footer>
+  <section class="row save-options">
+    <label class="chk">
+      <input type="checkbox" name="saveOnHit" {{#if saveOnHit}}checked{{/if}}>
+      <span class="checkmark"></span>
+      {{localize "SW5EHELPER.RequireSaveOnHit"}}
+    </label>
+    <label class="chk">
+      <input type="checkbox" name="saveOnly" {{#if saveOnly}}checked{{/if}}>
+      <span class="checkmark"></span>
+      {{localize "SW5EHELPER.SaveOnly"}}
+    </label>
+  </section>
 
+  <section class="row save-config">
+    <label for="saveAbility" class="form-label">{{localize "SW5EHELPER.SaveType"}}</label>
+    <select name="saveAbility" id="saveAbility" class="form-select">
+      {{#each abilities}}
+        <option value="{{this}}" {{#if (eq ../saveAbility this)}}selected{{/if}}>{{this}}</option>
+      {{/each}}
+    </select>
+
+    <label for="saveDcFormula" class="form-label">{{localize "SW5EHELPER.SaveDCFormula"}}</label>
+    <input type="text" id="saveDcFormula" name="saveDcFormula" value="{{saveDcFormula}}" 
+           placeholder="8 + @prof + @mod" class="form-input">
+  </section>
+
+  {{!-- =============== Class Features =============== --}}
+  <section class="row group-title">
+    <strong>✨ {{localize "SW5EHELPER.ClassFeatures"}}</strong>
+  </section>
+  
+  <section class="row features-content">
+    {{!-- Legacy system features (if any) --}}
+    {{#if features.length}}
+      {{#each features}}
+        <label class="chk feature-item" title="{{this.source}}">
+          <input type="checkbox" name="feature.{{this.id}}" {{#if this.enabled}}checked{{/if}}>
+          <span class="checkmark"></span>
+          <span class="feature-name">{{this.name}}</span>
+          <span class="feature-source">— {{this.source}}</span>
+        </label>
+      {{/each}}
+    {{/if}}
+    
+    {{!-- =============== PACK INTEGRATION - ATTACK FEATURES =============== --}}
+    {{!-- Dynamic pack attack features rendered here --}}
+    {{{packFeaturesHTML}}}
+    
+    {{#unless features.length}}{{#unless packFeaturesHTML}}
+      <em class="no-features">{{localize "SW5EHELPER.NoFeatures"}}</em>
+    {{/unless}}{{/unless}}
+  </section>
+
+  {{!-- ============ Roll Mode ============ --}}
+  <section class="row roll-mode">
+    <label class="roll-mode-label">{{localize "SW5EHELPER.RollMode"}}</label>
+    <div class="roll-mode-options">
+      <label class="roll-option">
+        <input type="radio" name="adv" value="adv" {{#if (eq adv "adv")}}checked{{/if}}>
+        <span class="roll-option-text">🎯 {{localize "SW5EHELPER.Adv"}}</span>
+      </label>
+      <label class="roll-option">
+        <input type="radio" name="adv" value="normal" {{#if (eq adv "normal")}}checked{{/if}}>
+        <span class="roll-option-text">🎲 {{localize "SW5EHELPER.Normal"}}</span>
+      </label>
+      <label class="roll-option">
+        <input type="radio" name="adv" value="dis" {{#if (eq adv "dis")}}checked{{/if}}>
+        <span class="roll-option-text">⚠️ {{localize "SW5EHELPER.Disadv"}}</span>
+      </label>
+    </div>
+  </section>
+
+  {{!-- ============ Footer ========== --}}
+  <footer class="row footer">
+    <button type="button" class="btn primary" data-action="roll">
+      ⚔️ {{localize "SW5EHELPER.RollAttack"}}
+    </button>
+    <button type="button" class="btn cancel" data-action="cancel">
+      ❌ {{localize "SW5EHELPER.Cancel"}}
+    </button>
+  </footer>
 </form>

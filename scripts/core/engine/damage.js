@@ -255,7 +255,7 @@ function buildDamagePools(damageParts, hasCrit, brutalFormula, brutalType) {
 
         // Only dice terms from eligible parts go into the EXTRA crit pool.
         // `isNaN(term)` is true for "1d8", "max(1d6,1d6)", etc. It's false for "5".
-        if ( inCrit  && isNaN(term) ) {
+        if ( hasCrit && inCrit && isNaN(term) ) {
             critPool.push([term, type, inCrit]);
         }
     }
@@ -353,8 +353,8 @@ export async function rollDamageForTargets({ actor, item, dmgState, targetRefs =
             const isCrit = !!critMap[ref];
             
             // Build the roll arrays FOR THIS TARGET.
-            const { RollArray } = await buildRollArrays( basePool );
-            const { CritRollArray } = await buildRollArrays( critPool );
+            const RollArray = await buildRollArrays( basePool );
+            const CritRollArray = await buildRollArrays( critPool );
             // Call the calculator FOR THIS TARGET.
             outputDamage.push(damageCalc(RollArray, CritRollArray, isCrit, ref));
             
